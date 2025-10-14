@@ -20,9 +20,11 @@ fast even with datasets of over a million observations.
 
 ## Installation
 
-You can install the development version of qol like so:
-
 ``` r
+# Official release
+install.packages("qol")
+
+# Development version
 devtools::install_github("s3rdia/qol")
 pak::pak("s3rdia/qol")
 ```
@@ -173,7 +175,7 @@ my_data |> any_table(rows       = c("sex + age", "sex", "age"),
                      na.rm      = TRUE)
 ```
 
-<img src='man/figures/tabulation.png'/>
+<img src='man/figures/tabulation.PNG'/>
 
 ## Readability
 
