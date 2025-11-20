@@ -170,67 +170,6 @@ inverse <- function(data_frame, var_names){
 }
 
 
-#' Compute Running Numbers
-#'
-#' @description
-#' Compute running numbers in a data frame. Without specifying a by variable
-#' results in the row number. With by variable computes the running number within
-#' each group of expressions.
-#'
-#' @param data_frame The data frame in which to compute the running number.
-#' @param var_name The variable name of the running number.
-#' @param by By group in which to compute the running number per expression.
-#'
-#' @return
-#' Returns the data frame with a new variable containing a running number.
-#'
-#' @examples
-#' # Example data frame
-#' my_data <- dummy_data(1000)
-#'
-#' # Get row numbers
-#' my_data <- my_data |> running_number()
-#' my_data <- my_data |> running_number("row_number")
-#'
-#' # Running number per variable expression
-#' my_data <- my_data |> running_number(by = year)
-#'
-#' @export
-running_number <- function(data_frame,
-                           var_name = "run_nr",
-                           by       = NULL){
-    # Convert to character vectors
-    by_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(by))))
-
-    if (substr(by_temp, 1, 2) == "c("){
-        by <- as.character(substitute(by))
-    }
-    else if (!is_error(by)){
-        # Do nothing. In this case variables already contains the substituted variable names
-        # while variables_temp is evaluated to the symbol passed into the function.
-    }
-    else{
-        by <- by_temp
-    }
-
-    # Remove extra first character created with substitution
-    by <- by[by != "c"]
-
-    # In case of a by variable
-    if (length(by) == 1){
-        data_frame[[var_name]] <- stats::ave(seq_len(nrow(data_frame)),
-                                             data.table::rleid(data_frame[[by]]),
-                                             FUN = seq_along)
-    }
-    # In case of no by variable
-    else{
-        data_frame[[var_name]] <- seq_len(nrow(data_frame))
-    }
-
-    data_frame
-}
-
-
 #' Order Columns by Variable Name Patterns
 #'
 #' @description
@@ -314,7 +253,7 @@ setcolorder_by_pattern <- function(data_frame, pattern){
 #'
 #' @export
 rename_pattern <- function(data_frame, old_pattern, new_pattern){
-    if (length(old_pattern) > 1 | length(new_pattern) > 1){
+    if (length(old_pattern) > 1 || length(new_pattern) > 1){
         message(" X ERROR: Only single pattern allowed. Rename pattern will be aborted.")
         return(data_frame)
     }
@@ -442,7 +381,7 @@ add_extension <- function(data_frame,
     extensions <- extensions[seq_len(min(n_extensions, n_target))]
 
     # Create the extended names
-    if (reuse == "last" & n_target - n_extensions > 0){
+    if (reuse == "last" && n_target - n_extensions > 0){
         # Repeat the last extension for the remaining columns
         extensions <- c(extensions, rep(extensions[n_extensions], n_target - n_extensions))
     }
@@ -456,4 +395,56 @@ add_extension <- function(data_frame,
     names(data_frame)[target_columns] <- paste0(var_names[target_columns], "_", extensions)
 
     data_frame
+}
+
+
+#' Replace Patterns While Protecting Exceptions
+#'
+#' @description
+#' Replaces a provided pattern with another, while protecting exceptions. Exceptions can
+#' contain the given pattern, but won't be changed during replacement.
+#'
+#' @param vector A vector containing the texts, where a pattern should be replaced.
+#' @param pattern The pattern that should be replaced.
+#' @param replacement The new pattern, which replaces the old one.
+#' @param exceptions A character vector containing exceptions, which should not be altered.
+#'
+#' @return
+#' Returns a vector with replaced pattern.
+#'
+#' @examples
+#' # Vector, where underscores hsould be replaced
+#' underscores <- c("my_variable", "var_with_underscores", "var_sum", "var_pct_total")
+#'
+#' # Extensions, where underscores shouldn't be replaced
+#' extensions <- c("_sum", "_pct_group", "_pct_total", "_pct_value", "_pct", "_freq_g0",
+#'                 "_freq", "_mean", "_median", "_mode", "_min", "_max", "_first",
+#'                 "_last", "_p1", "_p2", "_p3", "_p4", "_p5", "_p6", "_p7", "_p8", "_p9",
+#'                 "sum_wgt", "_sd", "_variance", "_missing")
+#'
+#' # Replace
+#' new_vector <- underscores |> replace_except("_", ".", extensions)
+#'
+#' @export
+replace_except <- function(vector,
+                           pattern,
+                           replacement,
+                           exceptions = NULL) {
+    # Replace the pattern in the exceptions with a pseudo symbol
+    except_replace <- gsub(pattern, "&%!", exceptions)
+
+    # Protect exceptions in original vector
+    for (element in seq_along(vector)){
+        for (exception in seq_along(exceptions)){
+            vector[[element]] <- gsub(exceptions[[exception]],
+                                      except_replace[[exception]],
+                                      vector[[element]])
+        }
+    }
+
+    # Replace pattern safely
+    vector <- gsub(pattern, replacement, vector)
+
+    # Reestablish protected pattern
+    gsub("&%!", pattern, vector)
 }

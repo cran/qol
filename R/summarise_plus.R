@@ -223,7 +223,7 @@ summarise_plus <- function(data_frame,
 
     # Create temporary weight column if none is provided.
     # Also get the name of the weight variable as string.
-    if (weight_temp == "NULL" | substr(weight_temp, 1, 2) == "c("){
+    if (weight_temp == "NULL" || substr(weight_temp, 1, 2) == "c("){
         weight_var <- ".temp_weight"
         data_frame[[".temp_weight"]] <- 1
 
@@ -264,7 +264,7 @@ summarise_plus <- function(data_frame,
     # Setup necessary options per code if merge_back so that there are no errors
     # even if the user didn't set them up correctly
     if (merge_back){
-        if (nesting != "deepest" | length(formats) > 0){
+        if (nesting != "deepest" || length(formats) > 0){
             message(" ! WARNING: Merging variables back only works with nesting = 'deepest' and only without formats.\n",
                     "            Options will be set accordingly.")
         }
@@ -413,7 +413,7 @@ summarise_plus <- function(data_frame,
     # Determine whether shortcut is possible
     flag_shortcut <- FALSE
 
-    if (length(only_sums) == 0 & !flag_interval & !na.rm){
+    if (length(only_sums) == 0 && !flag_interval && !na.rm){
         flag_shortcut <- TRUE
     }
 
@@ -540,6 +540,9 @@ summarise_plus <- function(data_frame,
             message("\n > Merging back.")
             monitor_df <- monitor_df |> monitor_next("Merge back", "Merge back")
 
+            # Don't merge back type variables, only summarised variable
+            result_df <- result_df |> drop_type_vars()
+
             result_df <- original_df |>
                 collapse::fungroup() |>
                 collapse::join(result_df,
@@ -559,7 +562,7 @@ summarise_plus <- function(data_frame,
         index <- 1
 
         message("\n > Executing merge:\n",
-                "     + total")
+                "   + total")
 
         # The results of all the possible combinations are computed one after another
         # starting with the grand total (ungrouped)
@@ -651,11 +654,11 @@ summarise_plus <- function(data_frame,
 
             message("\n > Executing combination merge:")
 
-            for (i in 1:length(group_vars)){
+            for (i in seq_along(group_vars)){
                 combinations <- utils::combn(group_vars, i, simplify = FALSE)
 
                 # If only combinations of depth 0 and 1 should be generated break out of the loop
-                if (tolower(nesting) == "single" & i > 1){
+                if (tolower(nesting) == "single" && i > 1){
                     break
                 }
 
@@ -832,7 +835,7 @@ summarise_plus <- function(data_frame,
         }
 
         # If types are defined, remove total if not defined in types
-        if (length(types) > 0 & !"total" %in% types){
+        if (length(types) > 0 && !"total" %in% types){
             result_df <- result_df |> collapse::fsubset(TYPE != "total")
         }
 

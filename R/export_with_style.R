@@ -98,7 +98,9 @@ export_with_style <- function(data_frame,
         monitor_df <- monitor_df |> monitor_next("Output tables", "Output tables")
 
         if (is.null(style[["file"]])){
-            wb$open()
+            if(interactive()){
+                wb$open()
+            }
         }
         else{
             wb$save(file = style[["file"]], overwrite = TRUE)
@@ -193,7 +195,7 @@ format_df_excel <- function(wb,
 
         # Freeze headers. If both options are true they have to be set together, otherwise one
         # option would overwrite the other.
-        if (style[["freeze_col_header"]] & style[["freeze_row_header"]]){
+        if (style[["freeze_col_header"]] && style[["freeze_row_header"]]){
             wb$freeze_pane(first_active_col = df_ranges[["header.column"]] + df_ranges[["cat_col.width"]],
                            first_active_row = df_ranges[["table.row"]])
         }
@@ -213,6 +215,11 @@ format_df_excel <- function(wb,
                                               style) |>
             handle_any_auto_dimensions(df_ranges, style) |>
             handle_header_table_dim(df_ranges, style)
+
+        wb$add_ignore_error(dims = df_ranges[["header_range"]], number_stored_as_text = TRUE)
+
+        wb$add_named_region(dims = df_ranges[["whole_tab_range"]], name = "table", local_sheet = TRUE)
+        wb$add_named_region(dims = df_ranges[["table_range"]],     name = "data",  local_sheet = TRUE)
     }
 
     monitor_df <- monitor_df |> monitor_end()
@@ -246,7 +253,7 @@ set_labels_as_names <- function(data_frame, var_labels){
         label <- var_labels[[i]]
 
         # Omit label with missing variable name
-        if (is.null(name) | name == ""){
+        if (is.null(name) || name == ""){
             next
         }
 

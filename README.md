@@ -5,6 +5,13 @@
 
 <!-- badges: start -->
 
+[![SAS](https://img.shields.io/badge/SAS-R-orange%20.svg)](https://github.com/s3rdia/qol)
+[![CRAN
+Version](https://www.r-pkg.org/badges/version/qol?color=green)](https://cran.r-project.org/package=qol)
+[![DEVELOPMENT
+Version](https://img.shields.io/badge/GitHub-1.1.0-blue.svg)](https://github.com/s3rdia/qol)
+[![CRAN
+checks](https://badges.cranchecks.info/summary/qol.svg)](https://cran.r-project.org/web/checks/check_results_qol.html)
 <!-- badges: end -->
 
 Bringing Powerful ‘SAS’ Inspired Concepts for more Efficient Bigger
@@ -175,7 +182,85 @@ my_data |> any_table(rows       = c("sex + age", "sex", "age"),
                      na.rm      = TRUE)
 ```
 
-<img src='man/figures/tabulation.PNG'/>
+<img src='man/figures/tabulation.png'/>
+
+You can also combine multiple tables in one workbook, each on a
+different sheet, and save the file, instead of just viewing it.
+
+``` r
+my_style <- my_style |> modify_output_style(sheet_name = "age_sex")
+
+# Capture the output of any_table() to get a list which contains the data frame
+# as well as the formatted workbook.
+# Note: You can set print to FALSE to prevent the workbook from opening.
+result_list <- my_data |>
+           any_table(rows       = c("age"),
+                     columns    = c("sex"),
+                     values     = weight,
+                     statistics = c("sum"),
+                     formats    = list(sex = sex., age = age.),
+                     style      = my_style,
+                     na.rm      = TRUE,
+                     print      = FALSE)
+
+# Set a new sheet name and define where the final workbook should be saved
+my_style <- my_style |> modify_output_style(sheet_name = "edu_year",
+                                            file       = "C:/My_folder/My_workbook.xlsx")
+
+# Pass on the workbook from before to the next any_table()
+my_data |> any_table(workbook   = result_list[["workbook"]],
+                     rows       = c("education"),
+                     columns    = c("year"),
+                     values     = weight,
+                     statistics = c("pct_group"),
+                     formats    = list(education = education.),
+                     style      = my_style,
+                     na.rm      = TRUE)
+                     
+# For safety set file back to NULL at the end. Otherwise the next any_table() will overwrite
+# the existing file.
+my_style <- my_style |> modify_output_style(file = NULL)
+```
+
+In case you have a good amount of tables, you want to combine in a
+single workbook, you can also catch the outputs and combine them
+afterwards in one go:
+
+``` r
+my_style <- my_style |> modify_output_style(sheet_name = "age_sex")
+
+# Catch the output as shown before, but additionally use the option -> output = "excel_nostyle".
+# This skips the styling part, so that the function runs faster. The styling is done later on.
+tab1 <- my_data |>
+       any_table(rows       = c("age"),
+                 columns    = c("sex"),
+                 values     = weight,
+                 statistics = c("sum"),
+                 formats    = list(sex = sex., age = age.),
+                 style      = my_style,
+                 na.rm      = TRUE,
+                 print      = FALSE,
+                 output     = "excel_nostyle")
+
+# Now let's asume you create a bunch of different tables
+my_style <- my_style |> modify_output_style(sheet_name = "sheet2")
+tab2     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
+
+my_style <- my_style |> modify_output_style(sheet_name = "sheet3")
+tab3     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
+
+my_style <- my_style |> modify_output_style(sheet_name = "sheet4")
+tab4     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
+
+...
+
+# Every of the above tabs is a list, which contains the data table, an unstyled workbook and the meta
+# information needed for the individual styling. These tabs can be input into the following function,
+# which reads the meta information, styles each table individually and combines them as separate sheets
+# into a single workbook.
+combine_into_workbook(tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8,
+                      file = "C:/My_folder/My_workbook.xlsx")
+```
 
 ## Readability
 
@@ -220,3 +305,13 @@ monitoring functions. The heavier functions in this package already make
 use of them and can show how they work internally like this:
 
 <img src='man/figures/monitor.png'/>
+
+## Customizing Visual Appearance
+
+Don’t like the colors of the built-in in RStudio themes? Can’t find a
+theme online that fits your liking? No Problem. With a simple function
+you can create a full theme file and decide which parts of the editor
+receive which colors. The themes shown below and the corresponding code
+can be found on GitHub.
+
+<img src='man/figures/theme.png'/>

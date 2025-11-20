@@ -35,7 +35,7 @@ data.table, collapse, openxlsx2
 
 Creating formats: \code{\link[=discrete_format]{discrete_format()}}, \code{\link[=interval_format]{interval_format()}}.
 
-Summarisation and tabulation: \code{\link[=summarise_plus]{summarise_plus()}}, \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}}, \code{\link[=any_table]{any_table()}}.
+Summarisation and tabulation: \code{\link[=summarise_plus]{summarise_plus()}}, \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}}, \code{\link[=any_table]{any_table()}}, \code{\link[=export_with_style]{export_with_style()}}, \code{\link[=combine_into_workbook]{combine_into_workbook()}}.
 
 Creating a custom table style: \code{\link[=excel_output_style]{excel_output_style()}}, \code{\link[=modify_output_style]{modify_output_style()}},
 \code{\link[=number_format_style]{number_format_style()}}, \code{\link[=modify_number_formats]{modify_number_formats()}}.
@@ -50,14 +50,16 @@ Monitoring: \code{\link[=monitor_start]{monitor_start()}}, \code{\link[=monitor_
 
 Renaming: \code{\link[=rename_pattern]{rename_pattern()}}, \code{\link[=add_extension]{add_extension()}}, \code{\link[=remove_stat_extension]{remove_stat_extension()}}.
 
+Retaining: \code{\link[=running_number]{running_number()}}, \code{\link[=mark_case]{mark_case()}}, \code{\link[=retain_value]{retain_value()}}, \code{\link[=retain_sum]{retain_sum()}}
+
 Generate dummy data: \code{\link[=dummy_data]{dummy_data()}}
 
-Small helpers: \code{\link[=inverse]{inverse()}}, \code{\link[=setcolorder_by_pattern]{setcolorder_by_pattern()}}, \code{\link[=running_number]{running_number()}},
-\code{\link[=drop_type_vars]{drop_type_vars()}}, \code{\link[=fuse_variables]{fuse_variables()}}.
+Small helpers: \code{\link[=inverse]{inverse()}}, \code{\link[=setcolorder_by_pattern]{setcolorder_by_pattern()}},
+\code{\link[=drop_type_vars]{drop_type_vars()}}, \code{\link[=fuse_variables]{fuse_variables()}}, \code{\link[=get_excel_range]{get_excel_range()}}, \code{\link[=replace_except]{replace_except()}}.
 
 Split data frame: \code{\link[=split_by_var]{split_by_var()}}, \code{\link[=split_by_condition]{split_by_condition()}}.
 
-Other: \code{\link[=args_to_char]{args_to_char()}}, \code{\link[=convert_numeric]{convert_numeric()}}, \code{\link[=is_numeric]{is_numeric()}}
+Other: \code{\link[=build_master]{build_master()}}, \code{\link[=build_rstheme]{build_rstheme()}}, \code{\link[=args_to_char]{args_to_char()}}, \code{\link[=convert_numeric]{convert_numeric()}}, \code{\link[=is_numeric]{is_numeric()}}
 }
 
 \section{Snippets}{
@@ -95,7 +97,7 @@ snippet cross
 snippet any
     any_table(rows        = c("var1 + var2 + ...", "var1"),
               columns     = c("var3", "var3 + var4 + ..."),
-              values.     = c("value_var1", "value_var2")
+              values      = c("value_var1", "value_var2"),
               statistics  = c("sum", "pct_group", "pct_value", "freq"),
               pct_group   = c("var1", "var2"),
               pct_value   = list(new_var = "numerator / denominator"),
@@ -104,7 +106,7 @@ snippet any
               footnotes   = c(),
               var_labels  = list("var1" = "My label", ...),
               stat_labels = list("pct" = "%"),
-              box         = ""
+              box         = "",
               weight      = weight_var)
 }
 }

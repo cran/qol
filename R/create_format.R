@@ -99,6 +99,23 @@
 #'     "Thuringia"                     = 16,
 #'     "East"                          = 11:16)
 #'
+#' # With discrete formats you can specify the keyword "other" to
+#' # catch any other value not covered by the explicitly specified values.
+#' age. <- discrete_format(
+#'     "under 18"       = 0:17,
+#'     "18 to under 25" = 18:24,
+#'     "25 to under 55" = "other")
+#'
+#' # With interval formats you can also use the keywords "low" and "high" to
+#' # catch everything from the lowest to the highest values, in case one doesn't
+#' # know exactly what the lowest and highest values are.
+#' income. <- interval_format(
+#'     "Total"              = c("low", "high"),
+#'     "below 500"          = c("low", 499),
+#'     "500 to under 1000"  = 500:999,
+#'     "1000 to under 2000" = 1000:1999,
+#'     "2000 and more"      = c(2000, "high"))
+#'
 #' @rdname formats
 #'
 #' @keywords internal
@@ -126,6 +143,16 @@ discrete_format <- function(...){
     # Flatten to long format
     unwrapped_format <- data.table::rbindlist(unwrap_all_groupings)
 
+    # Convert "other" keyword to integer max. This should be a value no one would pick normally.
+    if ("other" %in% tolower(unwrapped_format[["value"]])){
+        unwrapped_format[["value"]] <- sub("other", .Machine[["integer.max"]], tolower(unwrapped_format[["value"]]))
+
+        # If value column is all numeric then convert it to numeric
+        if (is_numeric(unwrapped_format[["value"]])){
+            unwrapped_format[["value"]] <- as.integer(unwrapped_format[["value"]])
+        }
+    }
+
     end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
     message("- - - 'discrete_format' execution time: ", end_time, " seconds")
 
@@ -148,11 +175,40 @@ interval_format <- function(...){
     from <- sapply(ranges, function(x) min(x, na.rm = TRUE))
     to   <- sapply(ranges, function(x) max(x, na.rm = TRUE))
 
+    # Insert pseudo low and high numbers for keywords
+    if (is.character(to)){
+        # First check if there are any other words than low and high in the format. If yes, abort.
+        if (!any(c("low", "high") %in% tolower(to))){
+            message(" X ERROR: Unknown keyword found. Creating interval format will be aborted.")
+            return(NULL)
+        }
+
+        # Low always ends up in "to", because it is a character value and comes alphabetically after high
+        if ("low" %in% tolower(to)){
+            # Swap the real not "low" value to "to" and insert a pseudo low number in "from"
+            to[tolower(to) == "low"]           <- from[tolower(to) == "low"]
+            from[tolower(from) == tolower(to)] <- -.Machine[["double.xmax"]]
+
+            from <- as.numeric(from)
+        }
+
+        # If there is the "high" keyword, at this point it will always be in "to" either the same way as low,
+        # just because it is character or because it is swapped here by the low code above.
+        if ("high" %in% tolower(to)){
+            # Enter a pseudo high number for "to"
+            to[tolower(to) == "high"] <- .Machine[["double.xmax"]]
+
+            from <- as.numeric(from)
+        }
+
+        to <- as.numeric(to)
+    }
+
     end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
     message("- - - 'interval_format' execution time: ", end_time, " seconds")
 
     # Put everything together in a data frame
-    data.table::data.table(from = from,
-                           to = to,
+    data.table::data.table(from  = from,
+                           to    = to,
                            label = labels)
 }

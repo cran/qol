@@ -27,7 +27,7 @@
 #' @section Functions:
 #' Creating formats: [discrete_format()], [interval_format()].
 #'
-#' Summarisation and tabulation: [summarise_plus()], [frequencies()], [crosstabs()], [any_table()].
+#' Summarisation and tabulation: [summarise_plus()], [frequencies()], [crosstabs()], [any_table()], [export_with_style()], [combine_into_workbook()].
 #'
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [number_format_style()], [modify_number_formats()].
@@ -42,14 +42,16 @@
 #'
 #' Renaming: [rename_pattern()], [add_extension()], [remove_stat_extension()].
 #'
+#' Retaining: [running_number()], [mark_case()], [retain_value()], [retain_sum()]
+#'
 #' Generate dummy data: [dummy_data()]
 #'
-#' Small helpers: [inverse()], [setcolorder_by_pattern()], [running_number()],
-#' [drop_type_vars()], [fuse_variables()].
+#' Small helpers: [inverse()], [setcolorder_by_pattern()],
+#' [drop_type_vars()], [fuse_variables()], [get_excel_range()], [replace_except()].
 #'
 #' Split data frame: [split_by_var()], [split_by_condition()].
 #'
-#' Other: [args_to_char()], [convert_numeric()], [is_numeric()]
+#' Other: [build_master()], [build_rstheme()], [args_to_char()], [convert_numeric()], [is_numeric()]
 #'
 #' @section Snippets:
 #' \preformatted{
@@ -85,7 +87,7 @@
 #' snippet any
 #'     any_table(rows        = c("var1 + var2 + ...", "var1"),
 #'               columns     = c("var3", "var3 + var4 + ..."),
-#'               values.     = c("value_var1", "value_var2")
+#'               values      = c("value_var1", "value_var2"),
 #'               statistics  = c("sum", "pct_group", "pct_value", "freq"),
 #'               pct_group   = c("var1", "var2"),
 #'               pct_value   = list(new_var = "numerator / denominator"),
@@ -94,7 +96,7 @@
 #'               footnotes   = c(),
 #'               var_labels  = list("var1" = "My label", ...),
 #'               stat_labels = list("pct" = "%"),
-#'               box         = ""
+#'               box         = "",
 #'               weight      = weight_var)
 #' }
 #'

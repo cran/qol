@@ -480,7 +480,7 @@ test_that("Specifying many statistics doesn't break function", {
                        weight     = weight)
 
     # 2 class vars + 17 statistics for both variables + sum_wgt
-    variable_count = 2 + (2 * 17) + 1 + 3
+    variable_count <- 2 + (2 * 17) + 1 + 3
     expect_equal(ncol(result_df), variable_count)
 })
 
@@ -598,7 +598,7 @@ test_that("Merging variables back to original data frame creates new column", {
                        weight     = weight,
                        merge_back = TRUE)
 
-    expect_equal(ncol(result_df), ncol(dummy_df) + 4)
+    expect_equal(ncol(result_df), ncol(dummy_df) + 1)
     expect_equal(nrow(result_df), nrow(dummy_df))
 })
 
@@ -612,7 +612,7 @@ test_that("Merging variables back works if wrong nesting option ist provided", {
                        nesting    = "all",
                        merge_back = TRUE), " ! WARNING: Merging variables back only works with nesting = 'deepest'")
 
-    expect_equal(ncol(result_df), ncol(dummy_df) + 4)
+    expect_equal(ncol(result_df), ncol(dummy_df) + 1)
     expect_equal(nrow(result_df), nrow(dummy_df))
 })
 

@@ -66,15 +66,15 @@
 #'                "This is footnote number 2",
 #'                "This is footnote number 3 link: https://cran.r-project.org/")
 #'
-#' # Output frequency tables
-#' my_data |> frequency(sex)
-#' my_data |> frequency(c(age, education),
-#'                      weight = weight)
+#' # Output frequencies tables
+#' my_data |> frequencies(sex)
+#' my_data |> frequencies(c(age, education),
+#'                        weight = weight)
 #'
 #' # Also works with characters
-#' my_data |> frequency("sex")
-#' my_data |> frequency(c("age", "education"),
-#'                      weight = "weight")
+#' my_data |> frequencies("sex")
+#' my_data |> frequencies(c("age", "education"),
+#'                        weight = "weight")
 #'
 #' # Applying formats and titles
 #' sex. <- discrete_format(
@@ -82,27 +82,27 @@
 #'     "Male"   = 1,
 #'     "Female" = 2)
 #'
-#' my_data |> frequency(sex, formats(sex = sex.),
-#'                      titles    = titles,
-#'                      footnotes = footnotes)
+#' my_data |> frequencies(sex, formats(sex = sex.),
+#'                        titles    = titles,
+#'                        footnotes = footnotes)
 #'
 #' # Split frequencies by expressions of another variable
-#' my_data |> frequency(sex, by = education)
+#' my_data |> frequencies(sex, by = education)
 #'
 #' # Get a list with two data tables for further usage
-#' result_list <- my_data |> frequency(sex, formats(sex = sex.))
+#' result_list <- my_data |> frequencies(sex, formats(sex = sex.))
 #'
 #' # Output in text file
-#' my_data |> frequency(sex, output = "text")
+#' my_data |> frequencies(sex, output = "text")
 #'
 #' # Output to Excel
-#' my_data |> frequency(sex, output = "excel")
+#' my_data |> frequencies(sex, output = "excel")
 #'
 #' # With individual styling
 #' my_style <- excel_output_style(header_back_color = "0077B6",
 #'                                font              = "Times New Roman")
 #'
-#' my_data |> frequency(sex, output = "excel", style = my_style)
+#' my_data |> frequencies(sex, output = "excel", style = my_style)
 #'
 #' @export
 frequencies <- function(data_frame,
@@ -235,7 +235,7 @@ frequencies <- function(data_frame,
     # Also get the name of the weight variable as string.
     weight_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(weight))))
 
-    if (weight_temp == "NULL" | substr(weight_temp, 1, 2) == "c("){
+    if (weight_temp == "NULL" || substr(weight_temp, 1, 2) == "c("){
         weight_var <- ".temp_weight"
         data_frame[[".temp_weight"]] <- 1
 
@@ -366,8 +366,9 @@ frequencies <- function(data_frame,
     }
     # In case by variables are specified
     else{
-        group_vars <- c(by, variables)
+        group_vars   <- c(by, variables)
         combinations <- as.vector(outer(by, variables, paste, sep = "+"))
+        combinations <- c("total", combinations)
 
         freq_tab <- suppressMessages(data_frame |>
              summarise_plus(class      = group_vars,
@@ -387,7 +388,7 @@ frequencies <- function(data_frame,
         freq_tab[["TYPE"]]     <- sub(".*\\+", "", freq_tab[["TYPE"]])
     }
 
-    if (is.null(mean_tab) | is.null(freq_tab)){
+    if (is.null(mean_tab) || is.null(freq_tab)){
         message(" X ERROR: Frequencies could not be computed.")
         return(invisible(NULL))
     }
@@ -412,7 +413,7 @@ frequencies <- function(data_frame,
                                              formats, by, titles, footnotes, na.rm)
         }
     }
-    else if (output == "excel" | output == "excel_nostyle"){
+    else if (output == "excel" || output == "excel_nostyle"){
         wb <- openxlsx2::wb_workbook() |>
             prepare_styles(style)
 
@@ -451,9 +452,11 @@ frequencies <- function(data_frame,
             writeLines(complete_table, temp_file)
             file.show(temp_file)
         }
-        else if (output == "excel" | output == "excel_nostyle"){
+        else if (output == "excel" || output == "excel_nostyle"){
             if (is.null(style[["file"]])){
-                wb$open()
+                if(interactive()){
+                    wb$open()
+                }
             }
             else{
                 wb$save(file = style[["file"]], overwrite = TRUE)
@@ -465,7 +468,7 @@ frequencies <- function(data_frame,
     monitor_df |> monitor_plot(draw_plot = monitor)
 
     end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
-    message("\n- - - 'frequency' execution time: ", end_time, " seconds\n")
+    message("\n- - - 'frequencies' execution time: ", end_time, " seconds\n")
 
     invisible(list("mean" = mean_tab,
                    "freq" = freq_tab))
@@ -770,8 +773,8 @@ format_mean_excel <- function(mean_tab,
         column_width <- style[["column_widths"]]
         row_heights  <- style[["row_heights"]]
 
-        if (length(column_width) == 1 & length(row_heights) == 1){
-            if (column_width != "auto" | row_heights != "auto"){
+        if (length(column_width) == 1 && length(row_heights) == 1){
+            if (column_width != "auto" || row_heights != "auto"){
                 wb <- wb |> handle_col_row_dimensions(mean_ranges,
                                                       ncol(mean_tab) + (style[["start_column"]] - 1),
                                                       nrow(mean_tab) + (style[["start_row"]] - 1),
@@ -797,6 +800,9 @@ format_mean_excel <- function(mean_tab,
                                   widths = 10)
             }
         }
+
+        wb$add_named_region(dims = mean_ranges[["whole_tab_range"]], name = "table", local_sheet = TRUE)
+        wb$add_named_region(dims = mean_ranges[["table_range"]],     name = "data",  local_sheet = TRUE)
     }
 
     # Return workbook
@@ -1017,9 +1023,9 @@ compute_cumulative <- function(freq_tab,
 
     var_tab[["fused_vars"]][nrow(var_tab)] <- "total"
 
-    var_tab[["var_cum_sum"]]  <- cumsum(var_tab[["var_sum"]])
-    var_tab[["var_cum_pct"]]  <- cumsum(var_tab[["var_pct_group"]])
-    var_tab[["var_cum_freq"]] <- cumsum(var_tab[["var_freq"]])
+    var_tab[["var_cum_sum"]]  <- collapse::fcumsum(var_tab[["var_sum"]])
+    var_tab[["var_cum_pct"]]  <- collapse::fcumsum(var_tab[["var_pct_group"]])
+    var_tab[["var_cum_freq"]] <- collapse::fcumsum(var_tab[["var_freq"]])
 
     # Erase total cumulative values
     var_tab[["var_cum_sum"]][nrow(var_tab)]  <- NA
@@ -1191,6 +1197,11 @@ format_freq_excel <- function(wb,
 
             wb <- wb |> handle_header_table_dim(freq_ranges,
                                                 style)
+
+            wb$add_ignore_error(dims = freq_ranges[["cat_col_range"]], number_stored_as_text = TRUE)
+
+            wb$add_named_region(dims = freq_ranges[["whole_tab_range"]], name = "table", local_sheet = TRUE)
+            wb$add_named_region(dims = freq_ranges[["table_range"]],     name = "data",  local_sheet = TRUE)
         }
 
         monitor_df <- monitor_df |> monitor_end()
@@ -1266,7 +1277,7 @@ format_by_text <- function(mean_tab,
         # Loop through all unique values to generate frequency tables per expression
         for (value in values){
             # In case NAs are removed
-            if (is.na(value) & na.rm){
+            if (is.na(value) && na.rm){
                 next
             }
 
@@ -1395,13 +1406,13 @@ format_by_excel <- function(mean_tab,
         # Loop through all unique values to generate frequency tables per expression
         for (value in values){
             # In case NAs are removed
-            if (is.na(value) & na.rm){
+            if (is.na(value) && na.rm){
                 next
             }
 
             message("   + ", paste0(by_var, " = ", value))
 
-            monitor_df <- monitor_df |> monitor_next(paste0("Excel mean (", by_var, "_", value,")"), "Format by")
+            monitor_df <- monitor_df |> monitor_next(paste0("Excel mean (", by_var, "_", value, ")"), "Format by")
 
             # Put additional by info together with the information which by variable
             # and which value is currently filtered.
@@ -1442,7 +1453,7 @@ format_by_excel <- function(mean_tab,
                 wb_list[[1]] <- wb
             }
 
-            monitor_df <- monitor_df |> monitor_next(paste0("Excel freq (", by_var, "_", value,")"), "Format by")
+            monitor_df <- monitor_df |> monitor_next(paste0("Excel freq (", by_var, "_", value, ")"), "Format by")
 
             # Generate frequency tables as normal but base is filtered data frame
             wb_list <- format_freq_excel(wb_list[[1]],

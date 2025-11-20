@@ -1,39 +1,6 @@
 ###############################################################################
 # Conversion
 ###############################################################################
-#' Converts Numbers to Letters
-#'
-#' @description
-#' Converts a number into the corresponding letter or if number is greater than 26
-#' a combination of letters.
-#'
-#' @param number Number which should be converted into a letter.
-#'
-#' @return
-#' Returns a single letter or combination of two or more letters.
-#'
-#' @noRd
-number_to_letter <- function(number){
-    # Get all letters
-    letters <- c(LETTERS)
-    letter  <- character()
-
-    # Translate given number to a single letter or letter combination
-    while (number > 0){
-        # Subtract one from number to make modulo operator put out correct value
-        # for edge case.
-        number <- number - 1
-        letter <- c(letters[number %% 26 + 1], letter)
-
-        # Check if a letter combination is needed (e.g. AA, AB) instead of a single
-        # letter. This is the case if a number higher than 26 was provided.
-        number <- number %/% 26
-    }
-
-    # Output letter or letter combination
-    paste0(letter, collapse = "")
-}
-
 
 #' Converts Numbers into 'Excel' Ranges
 #'
@@ -64,17 +31,28 @@ get_excel_range <- function(row      = NULL, column      = NULL,
 
     # Get single cell
     if (!is.null(row) && !is.null(column)){
-        return(paste0(number_to_letter(column), row))
+        if (row <= 0 || column <= 0){
+            message(" X ERROR: Row and column must be greater than 0.")
+            return(NULL)
+        }
+
+        return(openxlsx2::wb_dims(rows = row, cols = column))
     }
 
-    # Get range
-    if (!is.null(from_row) & !is.null(from_column) &
-        !is.null(to_row) & !is.null(to_column)){
-        from <- paste0(number_to_letter(from_column), from_row)
-        to   <- paste0(number_to_letter(to_column),   to_row)
+    # Else get cell range
+    if (!is.null(from_row) && !is.null(from_column) &&
+        !is.null(to_row) && !is.null(to_column)){
+            if (from_column <= 0 || from_row <= 0 || to_row <= 0 || to_column <= 0){
+                # No error message here because any_table runs into this regularly if
+                # e.g. there are no titles set.
+                return(NULL)
+            }
 
-        return(paste0(from, ":", to))
+        return(openxlsx2::wb_dims(rows = seq.int(from_row, to_row),
+                                  cols = seq.int(from_column, to_column)))
     }
+
+    NULL
 }
 
 ###############################################################################
@@ -88,10 +66,6 @@ get_excel_range <- function(row      = NULL, column      = NULL,
 #'
 #' @param table The data frame which holds the table information.
 #' @param multi_header The multi layered column header produced by any_table.
-#' @param col_header_dimensions A list containing the column variable names and the
-#' column header dimensions.
-#' @param row_header_dimensions A list containing the row variable names and the
-#' row header dimensions.
 #' @param titles Titles if there are any.
 #' @param footnotes Footnotes if there are any.
 #' @param style A list of style elements to format the table.
@@ -103,8 +77,6 @@ get_excel_range <- function(row      = NULL, column      = NULL,
 get_any_table_ranges <- function(table,
                                  multi_header,
                                  stats_row,
-                                 col_header_dimensions,
-                                 row_header_dimensions,
                                  titles     = NULL,
                                  footnotes  = NULL,
                                  style      = excel_output_style()){
@@ -152,7 +124,7 @@ get_any_table_ranges <- function(table,
                                    to_column = title.column)
 
     whole_tab_range <- get_excel_range(from_row  = header.row, from_column = header.column,
-                                       to_row    = table.row     + table.length + 1,
+                                       to_row    = table.row     + table.length - 1,
                                        to_column = header.column + (cat_col.width - 1) + header.width)
 
     header_range <- get_excel_range(from_row  = header.row, from_column = header.column,
@@ -208,14 +180,12 @@ get_any_table_ranges <- function(table,
 get_any_tab_ranges <- function(any_tab,
                                multi_header,
                                stats_row,
-                               col_header_dimensions,
-                               row_header_dimensions,
                                titles     = NULL,
                                footnotes  = NULL,
                                style      = excel_output_style()){
     # Get basic table ranges
-    table_ranges <- get_any_table_ranges(any_tab, multi_header, stats_row, col_header_dimensions,
-                                         row_header_dimensions, titles, footnotes, style)
+    table_ranges <- get_any_table_ranges(any_tab, multi_header, stats_row,
+                                         titles, footnotes, style)
 
     # Get specific parts of mean table
     any_col_ranges <- list()
@@ -308,7 +278,7 @@ handle_col_header_merge <- function(wb, column_header, ranges){
                 }
 
                 # Merge cells
-                if (from_row == to_row & from_col == to_col){
+                if (from_row == to_row && from_col == to_col){
                     start_col <- start_col + space
                     next
                 }
@@ -395,7 +365,7 @@ handle_row_header_merge <- function(wb, row_header, ranges){
                 }
 
                 # Merge cells
-                if (from_row == to_row & from_col == to_col){
+                if (from_row == to_row && from_col == to_col){
                     start_row <- start_row + space
                     next
                 }
@@ -450,7 +420,7 @@ get_df_ranges <- function(data_frame,
 
     format_index <- 1
 
-    for (i in 1:ncol(data_frame)){
+    for (i in seq_len(ncol(data_frame))){
         # If a variable doesn't have a statistics extension, it is likely not
         # a variable that needs a number format.
         var_end <- sub("p[0-9]+$", "p", utils::tail(strsplit(names(data_frame)[[i]], "_")[[1]], 1))
@@ -1089,16 +1059,17 @@ handle_col_row_dimensions <- function(wb,
                                       style = excel_output_style()){
     column_widths <- style[["column_widths"]]
     start_column  <- 1
+    end_column    <- style[["start_column"]] + (number_of_columns - 1)
 
     # If specific column widths are specified
     if (length(column_widths) > 1){
         column_widths <- fill_or_trim(column_widths,
-                                      number_of_columns)
+                                      end_column)
     }
     # If only one column width is specified
     else if (column_widths != "auto"){
         column_widths <- fill_or_trim(column_widths,
-                                      number_of_columns)
+                                      end_column)
     }
     # On auto format only format row header columns. On large workbooks this
     # is very slow so only make sure the text in front are readable.
@@ -1109,24 +1080,25 @@ handle_col_row_dimensions <- function(wb,
 
     row_heights <- style[["row_heights"]]
     start_row   <- 1
+    end_row     <- style[["start_row"]] + (number_of_rows - 1)
 
     # If specific column widths are specified
     if (length(row_heights) > 1){
         row_heights <- fill_or_trim(row_heights,
-                                    number_of_rows)
+                                    end_row)
     }
     # If only one row height is specified
     else if (row_heights != "auto"){
         row_heights <- fill_or_trim(row_heights,
-                                    number_of_rows)
+                                    end_row)
     }
     else{
         row_heights <- NULL
     }
 
-    wb$set_col_widths(cols   = start_column:number_of_columns,
+    wb$set_col_widths(cols   = start_column:end_column,
                       widths = column_widths)
-    wb$set_row_heights(rows    = start_row:number_of_rows,
+    wb$set_row_heights(rows    = start_row:end_row,
                        heights = row_heights)
 
     wb
@@ -1238,7 +1210,7 @@ handle_header_table_dim <- function(wb,
     if (!is.null(header_heights)){
         number_of_rows <- max(ranges[["header.length"]], 1)
         start_row      <- ranges[["header.row"]]
-        end_row        <- start_row + max(ranges[["header.length"]], 0)
+        end_row        <- start_row + max((number_of_rows - 1), 0)
 
         header_heights <- fill_or_trim(header_heights,
                                        number_of_rows)
@@ -1251,9 +1223,9 @@ handle_header_table_dim <- function(wb,
     table_heights <- style[["table_heights"]]
 
     if (!is.null(table_heights)){
-        number_of_rows <- ranges[["table.length"]] - 1
+        number_of_rows <- ranges[["table.length"]]
         start_row      <- ranges[["table.row"]]
-        end_row        <- start_row + number_of_rows
+        end_row        <- start_row + (number_of_rows - 1)
 
         table_heights <- fill_or_trim(table_heights,
                                       number_of_rows)

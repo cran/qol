@@ -7,7 +7,7 @@
 any_table(
   data_frame,
   rows,
-  columns,
+  columns = "",
   values,
   statistics = c("sum"),
   pct_group = c(),
@@ -79,9 +79,10 @@ variables percentages should be computed.}
 
 \item{weight}{Put in a weight variable to compute weighted results.}
 
-\item{order_by}{Determine how the columns will be ordered. "value" orders the results by the
+\item{order_by}{Determine how the columns will be ordered. "values" orders the results by the
 order you provide the variables in values. "stats" orders them by the order under statistics.
-And "interleaved" alternates the stats.}
+"values_stats" is a combination of both. "columns" keeps the order as given in columns
+and "interleaved" alternates the stats.}
 
 \item{titles}{Specify one or more table titles.}
 
@@ -111,18 +112,18 @@ carry the statistic extension (e.g. "_sum", "_pct") in the variable name.}
 \item{na.rm}{FALSE by default. If TRUE removes all NA values from the variables.}
 
 \item{print}{TRUE by default. If TRUE prints the output, if FALSE doesn't print anything. Can be used
-if one only wants to catch the output data frame and workbook.}
+if one only wants to catch the output data frame and workbook with meta information.}
 
 \item{monitor}{FALSE by default. If TRUE outputs two charts to visualize the functions time consumption.}
 }
 \value{
-Returns a list with the data table containing the results for the table and the formatted
-'Excel' workbook.
+Returns a list with the data table containing the results for the table, the formatted
+'Excel' workbook and the meta information needed for styling the final table.
 }
 \description{
 \code{\link[=any_table]{any_table()}} produces any possible descriptive table in 'Excel' format. Any number
 of variables can be nested and crossed. The output is an individually styled
-'Excel' table.
+'Excel' table, which also receives named ranges, making it easier to read the data back in.
 }
 \details{
 \code{\link[=any_table]{any_table()}} is based on the 'SAS' procedure Proc Tabulate, which provides
@@ -134,7 +135,7 @@ the table rows and columns with a simple syntax. Listing variables in a vector l
 c("var1", "var2", "var3",...) means to put variables below (in case of the
 row variables) or besides (in case of the column variables) each other. Nesting variables
 is as easy as putting a plus sign between them, e.g. c("var1 + var2", "var2" + "var3" + "var4", etc.).
-And of course you can combine both both versions.
+And of course you can combine both versions.
 
 The real highlight is, that this function not only creates all the desired variable
 combinations and exports them to an 'Excel' file, it prints a fully custom styled

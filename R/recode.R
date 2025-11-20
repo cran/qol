@@ -119,11 +119,16 @@ recode <- function(data_frame,
         return(data_frame)
     }
 
-    if (names(format_df)[1] == "value" & any(duplicated(format_df[["value"]]))){
+    if (names(format_df)[1] == "value" && any(duplicated(format_df[["value"]]))){
         message(" ! WARNING: The format for '", current_var, "' is a multilabel. A multilabel can't be fully applied in recode.\n",
                 "            Only one of the matching categories will be applied.")
 
         format_df <- format_df |> unique(by = "value", fromLast = FALSE)
+    }
+
+    if (is.factor(data_frame[[current_var]])){
+        message(" ~ NOTE: '", current_var, "' is a factor variable. Formats only work if the visible character values\n",
+                "         are specified as input values and not the factor levels.")
     }
 
     # Look up variable names in format data frame to check whether it is an
