@@ -1,4 +1,19 @@
-# qol 1.1.0 - DEVELOPMENT
+# qol 1.1.1 - DEVELOPMENT
+
+### New functions
+* `multi_join()`: Join two or more data frames together in one operation. (30.11.2025)
+* `libname()`: Check if path exists and retrieve files. (04.12.2025)
+
+### Fixed
+* `any_table()`: Fixed multi layered column header labels where not applied correct. (28.11.2025)
+* `any_table()`: Fixed incorrect column order when using order_by "values" while variable names have underscores. (04.12.2025)
+* `any_table()`: Using pre summed data now also works, if variable names carry underscores. (04.12.2025)
+
+### GitHub related
+* Added article comparing this package with SAS even further. (02.12.2025)
+
+
+# qol 1.1.0 - CRAN release on 20.11.2025
 
 ### New functions
 * `build_master()`: Reads a given folder structure, which contains scripts, and builds a master script as a markdown file. (18.10.2025)
@@ -51,7 +66,7 @@
 * Added example themes with corresponding code. (23.10.2025)
 
 
-# qol 1.0.2 
+# qol 1.0.2 - CRAN release on 14.10.2025
 
 ### DESCRIPTION file
 * Fixed brackets in DESCRIPTION so that auto linking works.

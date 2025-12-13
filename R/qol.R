@@ -36,6 +36,8 @@
 #'
 #' Selecting: [keep()], [dropp()].
 #'
+#' Joining: [multi_join()]
+#'
 #' If-statement: [if.()], [else_if.()], [else.()].
 #'
 #' Monitoring: [monitor_start()], [monitor_end()], [monitor_next()], [monitor_plot()].
@@ -46,7 +48,7 @@
 #'
 #' Generate dummy data: [dummy_data()]
 #'
-#' Small helpers: [inverse()], [setcolorder_by_pattern()],
+#' Small helpers: [libname()], [inverse()], [setcolorder_by_pattern()],
 #' [drop_type_vars()], [fuse_variables()], [get_excel_range()], [replace_except()].
 #'
 #' Split data frame: [split_by_var()], [split_by_condition()].
@@ -64,9 +66,9 @@
 #'                    nesting    = "deepest")
 #'
 #' snippet if.
-#'          if.(condition, var, value) |>
-#'     else_if.(condition, var, value) |>
-#'     else.   (           var, value)
+#'          if.(condition, var = value) |>
+#'     else_if.(condition, var = value) |>
+#'     else.   (           var = value)
 #'
 #' snippet freq
 #'     frequencies(variables = c(var1, var2, ...),

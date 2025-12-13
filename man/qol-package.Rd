@@ -44,6 +44,8 @@ Recoding: \code{\link[=recode]{recode()}}, \code{\link[=recode_multi]{recode_mul
 
 Selecting: \code{\link[=keep]{keep()}}, \code{\link[=dropp]{dropp()}}.
 
+Joining: \code{\link[=multi_join]{multi_join()}}
+
 If-statement: \code{\link[=if.]{if.()}}, \code{\link[=else_if.]{else_if.()}}, \code{\link[=else.]{else.()}}.
 
 Monitoring: \code{\link[=monitor_start]{monitor_start()}}, \code{\link[=monitor_end]{monitor_end()}}, \code{\link[=monitor_next]{monitor_next()}}, \code{\link[=monitor_plot]{monitor_plot()}}.
@@ -54,7 +56,7 @@ Retaining: \code{\link[=running_number]{running_number()}}, \code{\link[=mark_ca
 
 Generate dummy data: \code{\link[=dummy_data]{dummy_data()}}
 
-Small helpers: \code{\link[=inverse]{inverse()}}, \code{\link[=setcolorder_by_pattern]{setcolorder_by_pattern()}},
+Small helpers: \code{\link[=libname]{libname()}}, \code{\link[=inverse]{inverse()}}, \code{\link[=setcolorder_by_pattern]{setcolorder_by_pattern()}},
 \code{\link[=drop_type_vars]{drop_type_vars()}}, \code{\link[=fuse_variables]{fuse_variables()}}, \code{\link[=get_excel_range]{get_excel_range()}}, \code{\link[=replace_except]{replace_except()}}.
 
 Split data frame: \code{\link[=split_by_var]{split_by_var()}}, \code{\link[=split_by_condition]{split_by_condition()}}.
@@ -74,9 +76,9 @@ snippet splus
                    nesting    = "deepest")
 
 snippet if.
-         if.(condition, var, value) |>
-    else_if.(condition, var, value) |>
-    else.   (           var, value)
+         if.(condition, var = value) |>
+    else_if.(condition, var = value) |>
+    else.   (           var = value)
 
 snippet freq
     frequencies(variables = c(var1, var2, ...),

@@ -64,7 +64,7 @@
 #' @param na.rm FALSE by default. If TRUE removes all NA values from the variables.
 #' @param print TRUE by default. If TRUE prints the output, if FALSE doesn't print anything. Can be used
 #' if one only wants to catch the output data frame and workbook with meta information.
-#' @param monitor FALSE by default. If TRUE outputs two charts to visualize the functions time consumption.
+#' @param monitor FALSE by default. If TRUE, outputs two charts to visualize the functions time consumption.
 #'
 #' @details
 #' [any_table()] is based on the 'SAS' procedure Proc Tabulate, which provides
@@ -552,25 +552,6 @@ any_table <- function(data_frame,
             return(invisible(NULL))
         }
 
-        # Check for too many underscores
-        for (variable in values){
-            underscores <- lengths(gregexpr("_", variable, fixed = TRUE))
-
-            # More than one underscore only allowed with percentages
-            if (underscores > 1){
-                if (any(grepl("pct_", variable)) && underscores == 2){
-                    # Do nothing because in this case multiple underscores are okay
-                }
-                else if (any(grepl("freq_g0", variable)) && underscores == 2){
-                    # Do nothing because in this case multiple underscores are okay
-                }
-                else{
-                    message(" X ERROR: Too many underscores in values variable names. Execution will be aborted.")
-                    return(invisible(NULL))
-                }
-            }
-        }
-
         # Check if value variables have statistics extension
         extensions <- c("_sum", "_pct_group", "_pct_total", "_pct_value", "_pct", "_freq_g0",
                         "_freq", "_mean", "_median", "_mode", "_min", "_max", "_first",
@@ -594,7 +575,7 @@ any_table <- function(data_frame,
         weight     <- NULL
         formats    <- list()
 
-        rm(underscores, extensions, pattern)
+        rm(extensions, pattern)
     }
 
     rm(invalid_by, invalid_class, invalid_columns, invalid_rows, invalid_values,
@@ -863,6 +844,7 @@ any_table <- function(data_frame,
     rows       <- replace_except(rows,       "_", "!!!", extensions)
     columns    <- replace_except(columns,    "_", "!!!", extensions)
     value_vars <- replace_except(value_vars, "_", "!!!", extensions)
+    value_sort <- replace_except(values,     "_", "!!!", extensions)
     names(any_tab)    <- replace_except(names(any_tab),    "_", "!!!", extensions)
     any_tab[["TYPE"]] <- replace_except(any_tab[["TYPE"]], "_", "!!!", extensions)
 
@@ -1066,7 +1048,7 @@ any_table <- function(data_frame,
 
                 # Fill header rows with column variable names
                 for (var_index in seq_along(col_combi_vars)){
-                    col_header_df[var_index, ] <- col_combi_vars[[var_index]]
+                    col_header_df[var_index, ] <- gsub("!!!", "_", col_combi_vars[[var_index]])
                 }
 
                 # If the header has fewer rows than the maximum header rows, fill up the header
@@ -1118,8 +1100,8 @@ any_table <- function(data_frame,
 
     # Reorder variables by provided values
     if (tolower(order_by) == "values" || tolower(order_by) == "values_stats"){
-        any_tab    <- any_tab    |> setcolorder_by_pattern(values)
-        any_header <- any_header |> setcolorder_by_pattern(values)
+        any_tab    <- any_tab    |> setcolorder_by_pattern(value_sort)
+        any_header <- any_header |> setcolorder_by_pattern(value_sort)
     }
 
     # After binding together the data frames it can happen, that some of the new var
@@ -1504,7 +1486,7 @@ set_col_variable_labels <- function(column_header, var_labels){
         }
 
         # Replace variable texts with provided labels
-        column_header <- gsub(name, label, column_header)
+        column_header[,] <- gsub(name, label, as.matrix(column_header))
     }
 
     # If header only consists of one row it gets converted to a vector when using gsub above.

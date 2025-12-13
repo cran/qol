@@ -9,7 +9,7 @@
 [![CRAN
 Version](https://www.r-pkg.org/badges/version/qol?color=green)](https://cran.r-project.org/package=qol)
 [![DEVELOPMENT
-Version](https://img.shields.io/badge/GitHub-1.1.0-blue.svg)](https://github.com/s3rdia/qol)
+Version](https://img.shields.io/badge/GitHub-1.1.1-blue.svg)](https://github.com/s3rdia/qol)
 [![CRAN
 checks](https://badges.cranchecks.info/summary/qol.svg)](https://cran.r-project.org/web/checks/check_results_qol.html)
 <!-- badges: end -->
@@ -69,7 +69,7 @@ sex. <- discrete_format(
 ## Massive Outputs: Simple and fast
 
 The package builds on the incredibly fast
-[collapse](https://github.com/SebKrantz/collapse) and
+[collapse](https://github.com/fastverse/collapse) and
 [data.table](https://github.com/Rdatatable/data.table) packages. In
 addition the code is optimized to handle big datasets efficiently with
 the format concept.
@@ -260,6 +260,45 @@ tab4     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
 # into a single workbook.
 combine_into_workbook(tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8,
                       file = "C:/My_folder/My_workbook.xlsx")
+```
+
+## One Function to Join Them All
+
+Join two or more data frames together in one operation with multiple
+different join methods and join on differently named variables.
+Available methods are: left, right, inner, full, outer, left_inner,
+right_inner.
+
+``` r
+library(qol)
+
+# Simple join
+df1 <- data.frame(key = c(1, 1, 1, 2, 2, 2),
+                  a   = c("a", "a", "a", "a", "a", "a"))
+
+df2 <- data.frame(key = c(2, 3),
+                  b   = c("b", "b"))
+
+left_joined <- multi_join(list(df1, df2), on = "key")
+
+# Joining more than two data frames on different variable names with different methods
+df1b <- data.frame(key1 = c(1, 1, 1, 2, 2, 2),
+                   key2 = c("a", "a", "a", "a", "a", "a"),
+                   a    = c("a", "a", "a", "a", "a", "a"))
+
+df2b <- data.frame(var1 = c(1, 2),
+                   var2 = c("a", "a"),
+                   c    = c("c", "c"))
+
+df3b <- data.frame(any  = c(2, 3),
+                   name = c("a", "a"),
+                   b    = c("b", "b"))
+
+multiple_joined3 <- multi_join(list(df1b, df2b, df3b),
+                               on = list(df1b = c("key1", "key2"),
+                                         df2b = c("var1", "var2"),
+                                         df3b = c("any", "name")),
+                               how = c("left", "right"))
 ```
 
 ## Readability
