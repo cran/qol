@@ -6,29 +6,42 @@
 \alias{mark_case}
 \alias{retain_value}
 \alias{retain_sum}
+\alias{retain_variables}
 \title{Different Facets of Retain}
 \usage{
 running_number(data_frame, var_name = "run_nr", by = NULL)
 
 mark_case(data_frame, var_name = "first", by = NULL, first = TRUE)
 
-retain_value(data_frame, var_name = "retain_value", value, by = NULL)
+retain_value(data_frame, values, var_name = "retain_value", by = NULL)
 
-retain_sum(data_frame, var_name = "retain_sum", value, by = NULL)
+retain_sum(data_frame, values, var_name = "retain_sum", by = NULL)
+
+retain_variables(data_frame, ..., order_last = FALSE)
 }
 \arguments{
 \item{data_frame}{The data frame in which to compute retained variables.}
 
-\item{var_name}{The name of the newly created variable.}
+\item{var_name}{The name of the newly created variable.
+
+\link{retain_sum}: One or multiple variables of which the sum should be retained.}
 
 \item{by}{By group in which to compute the retained variable.}
 
 \item{first}{\code{\link[=mark_case]{mark_case()}}: If TRUE marks the first case within a group, otherwise
 the last case.}
 
-\item{value}{\link{retain_value}: One or multiple variables of which a value should be retained.
+\item{values}{\link{retain_value}: One or multiple variables of which a value should be retained.
 
-\link{retain_sum}: One or multiple variables of which the sum should be retained.}
+\link{retain_sum}: One or multiple variables of which their sum should be retained.}
+
+\item{...}{\code{\link[=retain_variables]{retain_variables()}}: Put in single variable names or variable ranges
+(var_name1:var_name10) which should be ordered to the front or back of the data frame.
+It is also possible to provide none existent variable names which will then be added
+to the data frame.}
+
+\item{retain_variables}{\code{\link[=retain_variables]{retain_variables()}}: FALSE by default. If TRUE puts the
+variables at the end of the data frame instead of the beginning.}
 }
 \value{
 \code{\link[=running_number]{running_number()}}: Returns the data frame with a new variable containing a running number.
@@ -36,6 +49,8 @@ the last case.}
 \code{\link[=mark_case]{mark_case()}}: Returns the data frame with a new variable marking first or last cases.
 
 \code{\link[=retain_value]{retain_value()}}: Return the data frame with a new variable containing a retained value.
+
+\code{\link[=retain_sum]{retain_sum()}}: Return the data frame with a new variable containing a retained sum.
 
 \code{\link[=retain_sum]{retain_sum()}}: Return the data frame with a new variable containing a retained sum.
 }
@@ -55,6 +70,10 @@ it into a new variable.
 
 \code{\link[=retain_sum]{retain_sum()}} retains the summarised values for all cases of the same group and saves
 it into a new variable.
+
+\code{\link[=retain_variables]{retain_variables()}} orders the provided variables to the front or back of the
+data frame. If a variable is not part of the data frame it will be added with
+all NA values at the desired position.
 }
 \details{
 The functions listed here are based on the 'SAS' function retain. On a very basic level retain
@@ -71,7 +90,7 @@ In it's simplest form it can remember a value from the first observation and tra
 other observations.
 
 All of these functions work on the whole data frame as well as on groups, e.g. to transfer
-a value from the first person in a household to all other persons of the same household.
+a value from the first person in a household to all other persons of the same household.ame retain
 }
 \examples{
 # Example data frame
@@ -98,8 +117,18 @@ my_data <- my_data |>
 # Retain sum inside a group
 my_data <- my_data |>
     retain_sum(var_name = c("weight_hh_sum", "icome_hh_sum"),
-               value    = c(weight, income),
+               values    = c(weight, income),
                by       = c(state, household_id))
+
+# Retain columns inside data frame, which orders them to the front
+my_data <- my_data |> retain_variables(age, sex, income)
+
+# Retain columns inside data frame, but order them to the end.
+# Variable ranges can also be used.
+my_data <- my_data |> retain_variables(age:income, order_last = TRUE)
+
+# Retain columns inside data frame and add new variables with all NA values
+my_data <- my_data |> retain_variables(age, sex, income, status1:status5)
 
 }
 \keyword{internal}

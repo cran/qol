@@ -49,7 +49,7 @@
 #'
 #' @seealso
 #' Functions that can handle formats: [summarise_plus()], [frequencies()], [crosstabs()],
-#' [any_table()], [recode_multi()].
+#' [any_table()], [recode_multi()], [transpose_plus()], [sort_plus()].
 #'
 #' @examples
 #' age. <- discrete_format(
@@ -143,14 +143,15 @@ discrete_format <- function(...){
     # Flatten to long format
     unwrapped_format <- data.table::rbindlist(unwrap_all_groupings)
 
+    # If label column is all numeric then convert it to numeric
+    unwrapped_format <- unwrapped_format |> convert_numeric("label")
+
     # Convert "other" keyword to integer max. This should be a value no one would pick normally.
     if ("other" %in% tolower(unwrapped_format[["value"]])){
         unwrapped_format[["value"]] <- sub("other", .Machine[["integer.max"]], tolower(unwrapped_format[["value"]]))
 
         # If value column is all numeric then convert it to numeric
-        if (is_numeric(unwrapped_format[["value"]])){
-            unwrapped_format[["value"]] <- as.integer(unwrapped_format[["value"]])
-        }
+        unwrapped_format <- unwrapped_format |> convert_numeric("value")
     }
 
     end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
@@ -180,7 +181,7 @@ interval_format <- function(...){
         # First check if there are any other words than low and high in the format. If yes, abort.
         if (!any(c("low", "high") %in% tolower(to))){
             message(" X ERROR: Unknown keyword found. Creating interval format will be aborted.")
-            return(NULL)
+            return(invisible(NULL))
         }
 
         # Low always ends up in "to", because it is a character value and comes alphabetically after high
@@ -210,5 +211,62 @@ interval_format <- function(...){
     # Put everything together in a data frame
     data.table::data.table(from  = from,
                            to    = to,
-                           label = labels)
+                           label = labels) |> convert_numeric("label")
+}
+
+
+#' Evaluate Formats
+#'
+#' @description
+#' Get the list of formats with their corresponding data frames.
+#'
+#' @param formats_list A list containing format names.
+#'
+#' @return
+#' Returns a list of format data frames.
+#'
+#' @noRd
+evaluate_formats <- function(formats_list){
+    if (length(formats_list) == 0){
+        return(c())
+    }
+
+    # Fetch all the provided formats and get the original data frames and store them into a list
+    formats <- lapply(formats_list, function(format){
+        if (length(format) > 1){
+            message(" ! WARNING: Formats not passed correctly. Create format object first and then\n",
+                    "            pass it to the function parameter like: list(my_variable = my_format)")
+            return(c())
+        }
+        dynGet(as.character(format), ifnotfound = NULL, inherits = TRUE)
+    })
+
+    names(formats) <- names(formats_list)
+
+    formats
+}
+
+
+#' Check If Format List Is Provided
+#'
+#' @description
+#' Check if the provided list is a list of data frames.
+#'
+#' @param formats_list A list containing format data frames.
+#'
+#' @return
+#' Returns TRUE or FALSE.
+#'
+#' @noRd
+is_list_of_dfs <- function(formats_list){
+    # This errors if formats_list can't be evaluated because of a missing object.
+    # In this case return FALSE so that the function using this check can evaluate to NULL.
+    tryCatch({
+        (is.list(formats_list)
+         && length(formats_list) > 0
+         && all(vapply(formats_list, data.table::is.data.table, logical(1))))
+    }, error = function(e) {
+        FALSE
+    })
+
 }

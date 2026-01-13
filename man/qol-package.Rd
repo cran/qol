@@ -33,35 +33,52 @@ data.table, collapse, openxlsx2
 
 \section{Functions}{
 
-Creating formats: \code{\link[=discrete_format]{discrete_format()}}, \code{\link[=interval_format]{interval_format()}}.
+Creating formats: \code{\link[=discrete_format]{discrete_format()}}, \code{\link[=interval_format]{interval_format()}}
 
-Summarisation and tabulation: \code{\link[=summarise_plus]{summarise_plus()}}, \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}}, \code{\link[=any_table]{any_table()}}, \code{\link[=export_with_style]{export_with_style()}}, \code{\link[=combine_into_workbook]{combine_into_workbook()}}.
+Summarisation and tabulation: \code{\link[=summarise_plus]{summarise_plus()}}, \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}}, \code{\link[=any_table]{any_table()}}, \code{\link[=export_with_style]{export_with_style()}}, \code{\link[=combine_into_workbook]{combine_into_workbook()}}
 
 Creating a custom table style: \code{\link[=excel_output_style]{excel_output_style()}}, \code{\link[=modify_output_style]{modify_output_style()}},
-\code{\link[=number_format_style]{number_format_style()}}, \code{\link[=modify_number_formats]{modify_number_formats()}}.
+\code{\link[=number_format_style]{number_format_style()}}, \code{\link[=modify_number_formats]{modify_number_formats()}}
 
-Recoding: \code{\link[=recode]{recode()}}, \code{\link[=recode_multi]{recode_multi()}}.
+Recoding: \code{\link[=recode]{recode()}}, \code{\link[=recode_multi]{recode_multi()}}
 
-Selecting: \code{\link[=keep]{keep()}}, \code{\link[=dropp]{dropp()}}.
+Selecting: \code{\link[=keep]{keep()}}, \code{\link[=dropp]{dropp()}}, \code{\link[=inverse]{inverse()}}, \code{\link[=vars_between]{vars_between()}}
 
 Joining: \code{\link[=multi_join]{multi_join()}}
 
-If-statement: \code{\link[=if.]{if.()}}, \code{\link[=else_if.]{else_if.()}}, \code{\link[=else.]{else.()}}.
+Transposing: \code{\link[=transpose_plus]{transpose_plus()}}
 
-Monitoring: \code{\link[=monitor_start]{monitor_start()}}, \code{\link[=monitor_end]{monitor_end()}}, \code{\link[=monitor_next]{monitor_next()}}, \code{\link[=monitor_plot]{monitor_plot()}}.
+Sorting: \code{\link[=sort_plus]{sort_plus()}}
 
-Renaming: \code{\link[=rename_pattern]{rename_pattern()}}, \code{\link[=add_extension]{add_extension()}}, \code{\link[=remove_stat_extension]{remove_stat_extension()}}.
+If-statement: \code{\link[=if.]{if.()}}, \code{\link[=else_if.]{else_if.()}}, \code{\link[=else.]{else.()}}
 
-Retaining: \code{\link[=running_number]{running_number()}}, \code{\link[=mark_case]{mark_case()}}, \code{\link[=retain_value]{retain_value()}}, \code{\link[=retain_sum]{retain_sum()}}
+Monitoring: \code{\link[=monitor_start]{monitor_start()}}, \code{\link[=monitor_end]{monitor_end()}}, \code{\link[=monitor_next]{monitor_next()}}, \code{\link[=monitor_plot]{monitor_plot()}}
+
+Renaming: \code{\link[=rename_pattern]{rename_pattern()}}, \code{\link[=add_extension]{add_extension()}}, \code{\link[=remove_stat_extension]{remove_stat_extension()}}, \code{\link[=replace_except]{replace_except()}}
+
+Retaining: \code{\link[=running_number]{running_number()}}, \code{\link[=mark_case]{mark_case()}}, \code{\link[=retain_value]{retain_value()}}, \code{\link[=retain_sum]{retain_sum()}}, \code{\link[=retain_variables]{retain_variables()}}
 
 Generate dummy data: \code{\link[=dummy_data]{dummy_data()}}
 
-Small helpers: \code{\link[=libname]{libname()}}, \code{\link[=inverse]{inverse()}}, \code{\link[=setcolorder_by_pattern]{setcolorder_by_pattern()}},
-\code{\link[=drop_type_vars]{drop_type_vars()}}, \code{\link[=fuse_variables]{fuse_variables()}}, \code{\link[=get_excel_range]{get_excel_range()}}, \code{\link[=replace_except]{replace_except()}}.
+Conversion: \code{\link[=args_to_char]{args_to_char()}}, \code{\link[=dots_to_char]{dots_to_char()}}, \code{\link[=get_origin_as_char]{get_origin_as_char()}} \code{\link[=convert_numeric]{convert_numeric()}}, \code{\link[=convert_factor]{convert_factor()}}
 
-Split data frame: \code{\link[=split_by_var]{split_by_var()}}, \code{\link[=split_by_condition]{split_by_condition()}}.
+Loading: \code{\link[=libname]{libname()}}, \code{\link[=set]{set()}}
 
-Other: \code{\link[=build_master]{build_master()}}, \code{\link[=build_rstheme]{build_rstheme()}}, \code{\link[=args_to_char]{args_to_char()}}, \code{\link[=convert_numeric]{convert_numeric()}}, \code{\link[=is_numeric]{is_numeric()}}
+Reporting: \code{\link[=content_report]{content_report()}}
+
+Small helpers: \code{\link[=setcolorder_by_pattern]{setcolorder_by_pattern()}}, \code{\link[=drop_type_vars]{drop_type_vars()}},
+\code{\link[=fuse_variables]{fuse_variables()}}, \code{\link[=get_excel_range]{get_excel_range()}}, \code{\link[=get_integer_length]{get_integer_length()}}
+
+Split data frame: \link{split_by}
+
+Error handling: \code{\link[=resolve_intersection]{resolve_intersection()}}, \code{\link[=part_of_df]{part_of_df()}}, \code{\link[=remove_doubled_values]{remove_doubled_values()}}, \code{\link[=check_weight]{check_weight()}}
+
+Global options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=reset_style_options]{reset_style_options()}}, \code{\link[=get_style_options]{get_style_options()}}, \code{\link[=close_file]{close_file()}},
+\code{\link[=set_variable_labels]{set_variable_labels()}}, \code{\link[=get_variable_labels]{get_variable_labels()}}, \code{\link[=set_stat_labels]{set_stat_labels()}}, \code{\link[=get_stat_labels]{get_stat_labels()}},
+\code{\link[=set_print]{set_print()}}, \code{\link[=get_print]{get_print()}}, \code{\link[=set_monitor]{set_monitor()}}, \code{\link[=get_monitor]{get_monitor()}}, \code{\link[=set_na.rm]{set_na.rm()}}, \code{\link[=get_na.rm]{get_na.rm()}},
+\code{\link[=set_output]{set_output()}}, \code{\link[=get_output]{get_output()}}, \code{\link[=set_titles]{set_titles()}}, \code{\link[=get_titles]{get_titles()}}, \code{\link[=set_footnotes]{set_footnotes()}}, \code{\link[=get_footnotes]{get_footnotes()}}
+
+Other: \code{\link[=build_master]{build_master()}}, \code{\link[=build_rstheme]{build_rstheme()}}
 }
 
 \section{Snippets}{
@@ -71,8 +88,8 @@ snippet splus
     summarise_plus(class      = c(var1, var2, ...),
                    values     = c(var1, var2, ...),
                    statistics = c("pct_group", "sum", "sum_wgt", "freq"),
-                   formats    = list(var = format., ...),
                    weight     = weight_var,
+                   formats    = list(var = format., ...),
                    nesting    = "deepest")
 
 snippet if.
@@ -82,19 +99,19 @@ snippet if.
 
 snippet freq
     frequencies(variables = c(var1, var2, ...),
+                weight    = weight_var,
                 formats   = list(var = "format.", ...),
                 titles    = c(),
-                footnotes = c(),
-                weight    = weight_var)
+                footnotes = c())
 
 snippet cross
     crosstabs(rows       = row_var,
               columns    = col_var,
               statistics = c("sum", "pct_row", "pct_column", "pct_total", "freq"),
+              weight    = weight_var,
               formats   = list(var = format., ...),
               titles    = c(),
-              footnotes = c(),
-              weight    = weight_var)
+              footnotes = c())
 
 snippet any
     any_table(rows        = c("var1 + var2 + ...", "var1"),
@@ -103,13 +120,13 @@ snippet any
               statistics  = c("sum", "pct_group", "pct_value", "freq"),
               pct_group   = c("var1", "var2"),
               pct_value   = list(new_var = "numerator / denominator"),
+              weight    = weight_var,
               formats     = list(var = format., ...),
               titles      = c(),
               footnotes   = c(),
               var_labels  = list("var1" = "My label", ...),
               stat_labels = list("pct" = "%"),
-              box         = "",
-              weight      = weight_var)
+              box         = "")
 }
 }
 

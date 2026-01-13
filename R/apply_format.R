@@ -15,14 +15,25 @@
 #' @noRd
 apply_format <- function(data_frame, formats, group_vars = NULL){
     if (length(formats) == 0){
-        return(data_frame)
+        # When no format is applied numeric variables should be sorted in numerical order.
+        # Otherwise they will be sorted as usual in format order.
+        # Additionally it should be possible to apply a format on a numerical variable stored
+        # as character. Meaning it is possible to e.g. join format expression "0001" on variable
+        # expression "0001". Variable expression "0001" won't be converted to 1 before join happens.
+        return(data_frame |> convert_numeric(group_vars))
     }
 
-    temp_data <- data_frame
-    arguments <- formats
+    arguments     <- formats
 
+    # See comment above about numeric conversion
+    inverse_group <- group_vars[!group_vars %in% names(arguments)]
+    temp_data     <- data_frame |> convert_numeric(inverse_group)
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Loop through all given variables and join each format with the data frame
     # at a time
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     for (current_var in names(arguments)){
         format_df <- arguments[[current_var]]
 
@@ -49,57 +60,56 @@ apply_format <- function(data_frame, formats, group_vars = NULL){
             next
         }
 
-        # Convert provided data frames to data table for speed
-        if (!data.table::is.data.table(temp_data)){
-            temp_data <- data.table::as.data.table(temp_data)
-        }
-
-        if (!data.table::is.data.table(format_df)){
-            temp_data <- data.table::as.data.table(format_df)
-        }
-
         # Look up variable names in format data frame to check whether it is an
         # interval or discrete format
         interval_variables <- c("from", "to")
         actual_variables <- names(format_df)[1:2]
 
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         # In case of interval format
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         if (identical(interval_variables, actual_variables)){
             # Separate NAs from rest of the data frame because the used join
             # can't handle them
-            temp_na   <- temp_data[is.na(temp_data[[current_var]]), ]
-            temp_data <- temp_data[!is.na(temp_data[[current_var]]), ]
+            na_positions <- is.na(temp_data[[current_var]])
+            temp_na      <- temp_data |> collapse::fsubset(na_positions)
+            temp_data    <- temp_data |> collapse::fsubset(!na_positions)
 
             # Generate pseudo variables for range merging
             temp_data[["qol_from"]] <- temp_data[[current_var]]
             temp_data[["qol_to"]]   <- temp_data[[current_var]]
 
-            data_frame[["qol_ID"]] <- seq_len(nrow(data_frame))
+            data_frame[["qol_ID"]] <- seq_len(collapse::fnrow(data_frame))
 
             # Make a copy of format data frame or otherwise the original will be
             # altered by the following key sorting
             format_dt <- data.table::copy(format_df)
 
             # Set key variables
-            data.table::setkey(temp_data, qol_from, qol_to)
             data.table::setkey(format_dt, from, to)
 
             # Merge data frame with format by range
             temp_data <- data.table::foverlaps(temp_data, format_dt,
                                                by.x = c("qol_from", "qol_to"),
-                                               by.y = c("from", "to")) |>
-                dropp(current_var, "qol_from", "qol_to", "from", "to") |>
-                collapse::frename("label" = current_var, .nse = FALSE)
+                                               by.y = c("from", "to"))
+
+            temp_data |> collapse::fselect(current_var, "qol_from", "qol_to", "from", "to") <- NULL
+            temp_data <- temp_data |> collapse::frename("label" = current_var, .nse = FALSE)
 
             # Put NAs back into full data frame
             temp_data <- data.table::rbindlist(list(temp_data, temp_na), fill = TRUE)
 
             all_levels <- format_df[3] |>
                 unlist(use.names = FALSE) |>
-                unique() |>
-                stats::na.omit()
+                collapse::funique() |>
+                collapse::na_omit()
         }
+
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         # In case of discrete format
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         else{
             # Rename label column to be specific to the variable
             format_df <- format_df |> collapse::frename("value" = current_var, .nse = FALSE)
@@ -112,7 +122,7 @@ apply_format <- function(data_frame, formats, group_vars = NULL){
                                         verbose  = FALSE)
 
             # If not all values are represented in the format container, check where there are gaps
-            # and fill them at the affected positions
+            # and fill them at the affected positions. This implements the "other" keyword in formats.
             na_positions <- which(is.na(temp_data[["label"]]) & !is.na(temp_data[[current_var]]))
             if (length(na_positions) > 0){
                 if (as.character(.Machine[["integer.max"]]) %in% tolower(format_df[[current_var]])){
@@ -127,15 +137,14 @@ apply_format <- function(data_frame, formats, group_vars = NULL){
             }
 
             # Drop current variable and rename newly joined label to current variable name
-            temp_data <- temp_data |>
-                dropp(current_var) |>
-                collapse::frename(stats::setNames("label", current_var))
+            temp_data |> collapse::fselect(current_var) <- NULL
+            temp_data <- temp_data |> collapse::frename("label" = current_var, .nse = FALSE)
 
             # Extract the number of labels from format
             label_levels <- format_df[-1] |>
                 unlist(use.names = FALSE) |>
-                unique() |>
-                stats::na.omit()
+                collapse::funique() |>
+                collapse::na_omit()
 
             all_levels <- union(label_levels, temp_data[[current_var]])
         }

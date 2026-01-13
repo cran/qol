@@ -1,4 +1,4 @@
-#' Fast and Powerful yet Simple to Use Summarise
+#' Fast And Powerful Yet Simple To Use Summarise
 #'
 #' @description
 #' [summarise_plus()] creates a new aggregated data table with the desired grouping.
@@ -75,7 +75,7 @@
 #' Creating formats: [discrete_format()] and [interval_format()].
 #'
 #' Functions that also make use of formats: [frequencies()], [crosstabs()],
-#' [any_table()], [recode()], [recode_multi()].
+#' [any_table()], [recode()], [recode_multi()], [transpose_plus()], [sort_plus()].
 #'
 #' @examples
 #' # Example formats
@@ -123,7 +123,7 @@
 #'                    nesting    = "all",
 #'                    na.rm      = TRUE)
 #'
-#'# Formats can also be passed as characters
+#' # Formats can also be passed as characters
 #' single <- my_data |>
 #'     summarise_plus(class      = c(year, age, sex),
 #'                    values     = weight,
@@ -154,43 +154,34 @@ summarise_plus <- function(data_frame,
                            class      = NULL,
                            values,
                            statistics = c("sum", "freq"),
-                           formats    = c(),
-                           types      = c(),
+                           formats    = list(),
+                           types      = "",
                            weight     = NULL,
                            nesting    = "deepest",
                            merge_back = FALSE,
-                           na.rm      = FALSE,
-                           monitor    = FALSE,
+                           na.rm      = .qol_options[["na.rm"]],
+                           monitor    = .qol_options[["monitor"]],
                            notes      = TRUE){
     # Measure the time
     start_time <- Sys.time()
 
+    #-------------------------------------------------------------------------#
     monitor_df <- NULL |> monitor_start("Error handling", "Preparation")
+    #-------------------------------------------------------------------------#
+
+    ###########################################################################
+    # Early evaluations
+    ###########################################################################
 
     # First convert data frame to data table
     if (!data.table::is.data.table(data_frame)){
         data_frame <- data.table::as.data.table(data_frame)
     }
 
-    # Evaluate formats early, otherwise apply formats can't evaluate them in unit
-    # test situation.
-    formats_list <- as.list(substitute(formats))[-1]
-
-    if (length(formats_list) > 0){
-        formats <- stats::setNames(
-            lapply(formats_list, function(expression){
-                # Catch expression if passed as string
-                if (is.character(expression)) {
-                    tryCatch(get(expression, envir = parent.frame()),
-                             error = function(e) NULL)
-                }
-                # Catch expression if passed as symbol
-                else{
-                    tryCatch(eval(expression, envir = parent.frame()),
-                             error = function(e) NULL)
-                }
-            }),
-            names(formats_list))
+    # Evaluate formats early
+    if (!is_list_of_dfs(formats)){
+        formats_list <- as.list(substitute(formats))[-1]
+        formats      <- evaluate_formats(formats_list)
     }
 
     # Look up variable names in format data frame to check whether there is an
@@ -212,54 +203,28 @@ summarise_plus <- function(data_frame,
     # Error handling
     ###########################################################################
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Nesting
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     # Correct nesting option if not set right
     if (!nesting %in% c("deepest", "all", "single")){
-        message(" ! WARNING: Nested option '", nesting, "' doesn't exist. Options 'deepest', 'all' and 'single'\n",
-                "            are available. Nested will be set to 'deepest'.")
+        message(" ! WARNING: <Nested> option '", nesting, "' doesn't exist. Options 'deepest', 'all' and 'single'\n",
+                "            are available. <Nested> will be set to 'deepest'.")
         nesting <- "deepest"
     }
 
-    weight_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(weight), width.cutoff = 500L)))
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Weight
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    # Create temporary weight column if none is provided.
-    # Also get the name of the weight variable as string.
-    if (weight_temp == "NULL" || substr(weight_temp, 1, 2) == "c("){
-        weight_var <- ".temp_weight"
-        data_frame[[".temp_weight"]] <- 1
+    weight     <- get_origin_as_char(weight, substitute(weight))
+    data_frame <- data_frame |> check_weight(weight)
+    weight_var <- ".temp_weight"
 
-        if (substr(weight_temp, 1, 2) == "c("){
-            message(" ! WARNING: Only one variable for weight allowed. Evaluations will be unweighted.")
-        }
-    }
-    else if (!is_error(weight)){
-        # In this case weight already contains the substituted variable name
-        # while weight_temp is evaluated to the symbol passed into the function.
-        weight_var <- weight
-    }
-    else if (!weight_temp %in% names(data_frame)){
-        weight_var <- ".temp_weight"
-        data_frame[[".temp_weight"]] <- 1
-
-        message(" ! WARNING: Provided weight variable is not part of the data frame. Unweighted results will be computed.")
-    }
-    else if (!is_numeric(data_frame[[weight_temp]])){
-        weight_var <- ".temp_weight"
-        data_frame[[".temp_weight"]] <- 1
-
-        message(" ! WARNING: Provided weight variable is not numeric. Unweighted results will be computed.")
-    }
-    else{
-        weight_var <- weight_temp
-
-        # NA values in weight lead to errors therefor convert them to 0
-        if (anyNA(data_frame[[weight_temp]])){
-            message(" ~ NOTE: Missing values in weight variable '", weight_temp, "' will be converted to 0.")
-        }
-        data_frame[[weight_temp]] <- data.table::fifelse(is.na(data_frame[[weight_temp]]), 0, data_frame[[weight_temp]])
-
-        # @Hack: so I don't have to check if .temp_weight exists later on
-        data_frame[[".temp_weight"]] <- 1
-    }
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Merge back
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     # Setup necessary options per code if merge_back so that there are no errors
     # even if the user didn't set them up correctly
@@ -273,125 +238,16 @@ summarise_plus <- function(data_frame,
         formats <- list()
     }
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Statistics
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     list_of_statistics <- get_complete_statistics_list(statistics)
-
-    # Convert to character vectors
-    class_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(class), width.cutoff = 500L)))
-
-    if (substr(class_temp, 1, 2) == "c("){
-        class <- as.character(substitute(class))
-    }
-    else if (!is_error(class)){
-        # Do nothing. In this case class already contains the substituted variable names
-        # while class_temp is evaluated to the symbol passed into the function.
-    }
-    else{
-        class <- class_temp
-    }
-
-    # Remove extra first character created with substitution
-    class <- class[class != "c"]
-
-    # Convert to character vectors
-    values_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(values), width.cutoff = 500L)))
-
-    if (substr(values_temp, 1, 2) == "c("){
-        values <- as.character(substitute(values))
-    }
-    else if (!is_error(values)){
-        # Do nothing. In this case values already contains the substituted variable names
-        # while values_temp is evaluated to the symbol passed into the function.
-    }
-    else{
-        values <- values_temp
-    }
-
-    # Remove extra first character created with substitution
-    values <- values[values != "c"]
-
-    # If no value variables are provided abort
-    if (length(values) == 0){
-        message(" X ERROR: No values provided.")
-        return(NULL)
-    }
-    else if (length(values) == 1){
-        if (values == ""){
-            message(" X ERROR: No values provided.")
-            return(NULL)
-        }
-    }
-
-    # Make sure there is no class variable that is also a value variable.
-    invalid_class <- class[class %in% values]
-    values        <- values[!values %in% class]
-
-    if (length(invalid_class) > 0){
-        message(" ! WARNING: The provided class variable '", paste(invalid_class, collapse = ", "), "' is also part of\n",
-                "            the analysis variables. This variable will be omitted as analysis variable during computation.")
-    }
-
-    # Make sure that the variables provided are part of the data frame.
-    provided_class <- class
-    invalid_class  <- class[!class %in% names(data_frame)]
-    class          <- class[class %in% names(data_frame)]
-
-    if (length(invalid_class) > 0){
-        message(" ! WARNING: The provided class variable '", paste(invalid_class, collapse = ", "), "' is not part of\n",
-                "            the data frame. This variable will be omitted during computation.")
-    }
-
-    # If no grouping variables are provided create a pseudo grouping variable
-    if (length(class) == 0){
-        class <- "pseudo_class"
-        data_frame[["pseudo_class"]] <- 1
-    }
-
-    provided_values <- values
-    invalid_values  <- values[!values %in% names(data_frame)]
-    values          <- values[values %in% names(data_frame)]
-
-    if (length(invalid_values) > 0){
-        message(" ! WARNING: The provided analysis variable '", paste(invalid_values, collapse = ", "), "' is not part of\n",
-                "            the data frame. This variable will be omitted during computation.")
-    }
-
-    if (length(values) == 0){
-        message(" X ERROR: No valid analysis variables provided. Summarise will be aborted.")
-        return(NULL)
-    }
-
-    # Make sure provided variable list has no double entries
-    provided_class <- class
-    class          <- unique(class)
-
-    if (length(provided_class) > length(class)){
-        message(" ! WARNING: Some grouping variables are provided more than once. The doubled entries will be omitted.")
-    }
-
-    provided_values <- values
-    values          <- unique(values)
-
-    if (length(provided_values) > length(values)){
-        message(" ! WARNING: Some analysis variables are provided more than once. The doubled entries will be omitted.")
-    }
-
-    rm(class_temp, provided_class, invalid_class, values_temp, provided_values, invalid_values)
-
-    ###########################################################################
-    # Summarisation starts
-    ###########################################################################
-
-    monitor_df <- monitor_df |> monitor_next("Pre compute", "Preparation")
-
-    # If types are specified reorder them alphabetically
-    if (length(types) > 0){
-        reordered_types <- reorder_combination(types)
-    }
 
     # Get the intersection of the requested statistics to make sure
     # only valid actions are passed down
     statistics     <- tolower(statistics)
-    requested      <- unique(unlist(list(statistics)))
+    requested      <- collapse::funique(unlist(list(statistics)))
     valid_stats    <- requested[requested %in% names(list_of_statistics)]
     selected_stats <- list_of_statistics[valid_stats]
 
@@ -400,6 +256,126 @@ summarise_plus <- function(data_frame,
     # and then apply the formats to a much smaller data frame.
     only_sums <- valid_stats[!valid_stats %in% c("sum", "sum_wgt", "freq", "freq_g0",
                                                  "missing", "pct_group", "pct_total")]
+
+    # Check for invalid statistics
+    invalid_stats <- requested[!requested %in% c(names(list_of_statistics), "sum_wgt",
+                                                 "pct_group", "pct_total", paste0("p", 1:100))]
+
+    if (length(invalid_stats) > 0){
+        message(" ! WARNING: <Statistic> '", invalid_stats, "' is invalid and will be omitted.")
+
+        if (length(selected_stats) == 0){
+            message(" ! WARNING: No valid <statistic> selected. 'sum' will be used.")
+
+            statistics     <- "sum"
+            requested      <- "sum"
+            valid_stats    <- "sum"
+            selected_stats <- "sum"
+        }
+    }
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Class
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    class <- get_origin_as_char(class, substitute(class))
+
+    # Make sure that the variables provided are part of the data frame.
+    class <- data_frame |> part_of_df(class)
+
+    # If no grouping variables are provided create a pseudo grouping variable
+    if (length(class) == 0){
+        class <- "pseudo_class"
+        data_frame[["pseudo_class"]] <- 1
+    }
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Values
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    values <- get_origin_as_char(values, substitute(values))
+
+    # If no value variables are provided abort
+    if (length(values) <= 1){
+        if (length(values) == 0 || values == ""){
+            message(" X ERROR: No <values> provided. Summarise will be aborted.")
+            return(invisible(NULL))
+        }
+    }
+
+    # Make sure there is no class variable that is also a value variable.
+    values <- resolve_intersection(values, class)
+
+    # Make sure that the variables provided are part of the data frame.
+    values <- data_frame |> part_of_df(values)
+
+    if (length(values) == 0){
+        message(" X ERROR: No <values> variables provided. Summarise will be aborted.")
+        return(invisible(NULL))
+    }
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Types
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    # Get row variables from provided combinations
+    type_vars <- unlist_variables(types)
+
+    # If there are type provided
+    if (is.null(type_vars)){
+        message(" ! WARNING: <Types> must be provided in quotation marks. Types will be ignored.")
+        types <- NULL
+    }
+    else if (length(type_vars) > 0){
+        # Exclude total because it will most likely not be part of the data frame
+        type_vars <- type_vars[type_vars != "total"]
+        type_vars <- data_frame |> part_of_df(type_vars, check_only = TRUE)
+
+        if (is.list(type_vars)){
+            message(" ! WARNING: The provided <type> '", paste(type_vars[[1]], collapse = ", "), "' is not part of\n",
+                    "            the data frame. Types will be ignored.")
+            types <- NULL
+        }
+
+        invalid_types <- type_vars[!type_vars %in% class]
+
+        if (length(invalid_types) > 0){
+            message(" ! WARNING: The provided <type> '", paste(type_vars[[1]], collapse = ", "), "' is not part of\n",
+                    "            the <class> variables. Types will be ignored.")
+            types <- NULL
+        }
+
+        rm(invalid_types)
+    }
+    else{
+        types <- NULL
+    }
+
+    rm(type_vars)
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Double entries
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    class  <- remove_doubled_values(class)
+    values <- remove_doubled_values(values)
+
+    ###########################################################################
+    # Summarisation starts
+    ###########################################################################
+
+    #-------------------------------------------------------------------------#
+    monitor_df <- monitor_df |> monitor_next("Pre compute", "Preparation")
+    #-------------------------------------------------------------------------#
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Some preparations beforehand
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    # If types are specified reorder them alphabetically
+    if (length(types) > 0){
+        reordered_types <- reorder_combination(types)
+    }
 
     # Get the group vars first
     group_vars <- class
@@ -410,10 +386,19 @@ summarise_plus <- function(data_frame,
 
     result_df <- NULL
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # If only statistics are provided, which rely on summarisation, the function
+    # can take a shortcut by pre summarising the data without any formats.
+    # Any additional summarise has way less cases to work with and therefore runs
+    # way faster.
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     # Determine whether shortcut is possible
     flag_shortcut <- FALSE
 
-    if (length(only_sums) == 0 && !flag_interval && !na.rm){
+    # Determine when a faster route can be taken to compute the results. Basically
+    # this is possible with operations based on sums.
+    if (length(only_sums) == 0 && !flag_interval){
         flag_shortcut <- TRUE
     }
 
@@ -428,7 +413,8 @@ summarise_plus <- function(data_frame,
                              data_frame[[weight_var]],
                              selected_stats,
                              list_of_statistics,
-                             monitor_df)
+                             monitor_df,
+                             !flag_shortcut)
 
         data_frame  <- result_list[[1]]
         monitor_df  <- result_list[[2]]
@@ -438,28 +424,34 @@ summarise_plus <- function(data_frame,
         values <- data_frame |> inverse(group_vars)
     }
 
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Apply formats", "Apply formats")
+    #-------------------------------------------------------------------------#
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Nesting crossroad
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     # If only the combination of every grouping variable should be evaluated
     if (tolower(nesting) == "deepest"){
         # Remove NAs from grouping variables
         if (na.rm){
-            data_frame <- data_frame[stats::complete.cases(data_frame[class]), ]
+            data_frame <- collapse::na_omit(data_frame, cols = class)
         }
 
-        message("\n > Executing nested merge.")
+        message("\n > Executing nested merge")
         get_group_missings(original_df[group_vars], notes, na.rm)
 
         if (!merge_back){
             rm(original_df)
         }
 
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # There are different routes for the shortcut and no shortcut summarise
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         if (flag_shortcut){
-            # Convert numeric variables back which have become characters during summarisation
-            # and apply formats
-            result_df <- data_frame |>
-                convert_numeric(group_vars) |>
-                apply_format(formats, group_vars)
+            result_df <- data_frame |> apply_format(formats, group_vars)
 
             # Final summarise with formatted data frame
             result_df <- result_df |>
@@ -489,12 +481,16 @@ summarise_plus <- function(data_frame,
                                  result_df[[weight_var]],
                                  selected_stats,
                                  list_of_statistics,
-                                 monitor_df)
+                                 monitor_df,
+                                 !flag_shortcut)
 
             fast_pct <- FALSE
         }
 
-        # Compute percentages
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        #  Compute percentages
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         result_list <- compute_group_percentages(data_frame,
                                                  result_list[[1]],
                                                  statistics,
@@ -520,7 +516,13 @@ summarise_plus <- function(data_frame,
         result_df  <- result_list[[1]]
         monitor_df <- result_list[[2]]
 
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_start("Clean up", "Clean up")
+        #---------------------------------------------------------------------#
+
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        #  Clean up
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
         # Generate TYPE variables
         type <- paste(group_vars, collapse = "+")
@@ -533,12 +535,17 @@ summarise_plus <- function(data_frame,
             handle_sum_drops(statistics) |>
             reorder_summarised_columns(requested)
 
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         # If no formats are used (meaning only pre defined variables) it is
         # possible to merge the summarized variables back to the original
         # data frame in one go.
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         if (merge_back){
-            message("\n > Merging back.")
+            message("\n > Merging back")
+            #-----------------------------------------------------------------#
             monitor_df <- monitor_df |> monitor_next("Merge back", "Merge back")
+            #-----------------------------------------------------------------#
 
             # Don't merge back type variables, only summarised variable
             result_df <- result_df |> drop_type_vars()
@@ -552,8 +559,10 @@ summarise_plus <- function(data_frame,
                 dropp(".temp_weight")
         }
 
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_end()
         monitor_plot(monitor_df, by = "section", draw_plot = monitor)
+        #---------------------------------------------------------------------#
 
     }
     # If every possible combination of the given grouping variables should be evaluated
@@ -564,12 +573,17 @@ summarise_plus <- function(data_frame,
         message("\n > Executing merge:\n",
                 "   + total")
 
-        # The results of all the possible combinations are computed one after another
-        # starting with the grand total (ungrouped)
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # The results of all the possible combinations are computed one after
+        # another starting with the grand total (ungrouped)
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         if (flag_shortcut){
+            # Create a new original data frame to be able to remove NA values
+            original_df_shortcut <- data_frame
+
             # Final summarise
             total_df <- data_frame |>
-                convert_numeric(group_vars) |>
                 collapse::fsummarise(across(values, collapse::fsum))
 
             sum_columns   <- values[grepl("_sum$", values)]
@@ -591,7 +605,8 @@ summarise_plus <- function(data_frame,
                                  data_frame[[weight_var]],
                                  selected_stats,
                                  list_of_statistics,
-                                 monitor_df)
+                                 monitor_df,
+                                 !flag_shortcut)
 
             sum_columns   <- paste0(values, "_sum")
             new_group_pct <- paste0(values, "_pct_group")
@@ -602,7 +617,13 @@ summarise_plus <- function(data_frame,
         total_df   <- total_list[[1]]
         monitor_df <- total_list[[2]]
 
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_start("pct_group(total)", "Calc(total)")
+        #---------------------------------------------------------------------#
+
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # Total percentages
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
         # Copy total sums to have them ready for the group data frames. This way
         # they can be easily joined to compute total percentages faster.
@@ -622,7 +643,9 @@ summarise_plus <- function(data_frame,
             }
         }
 
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("pct_total(total)", "Calc(total)")
+        #---------------------------------------------------------------------#
 
         if ("pct_total" %in% statistics){
             # For compute percentages for every variable
@@ -635,19 +658,22 @@ summarise_plus <- function(data_frame,
 
         # Every grouping variable which was not part of the current grouping
         # gets set to a missing value
-        total_df[group_vars] <- NA
-        total_df[["TYPE"]] <- "total"
+        total_df[group_vars]  <- NA
+        total_df[["TYPE"]]    <- "total"
         total_df[["TYPE_NR"]] <- as.integer(index)
-        total_df[["DEPTH"]] <- as.integer(0)
+        total_df[["DEPTH"]]   <- as.integer(0)
 
         # Add data frame to list to add them together at the end
         all_results[["total"]] <- total_df
 
         monitor_df <- monitor_df |> monitor_end()
 
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         # If grouping variables where defined: compute every possible combination
         # of these variables. Starting with single combinations, then double,
         # triple, and so on.
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         if (length(group_vars) > 0) {
 
             index <- index + 1
@@ -655,6 +681,7 @@ summarise_plus <- function(data_frame,
             message("\n > Executing combination merge:")
 
             for (i in seq_along(group_vars)){
+                # Generate every possible combination
                 combinations <- utils::combn(group_vars, i, simplify = FALSE)
 
                 # If only combinations of depth 0 and 1 should be generated break out of the loop
@@ -662,12 +689,18 @@ summarise_plus <- function(data_frame,
                     break
                 }
 
+                #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                # Loop through combinations
+                #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
                 for (combination in combinations){
                     # If types are specified check first if combination is of the right type
                     if (length(types) > 0){
+                        #-----------------------------------------------------#
                         monitor_df <- monitor_df |>
                             monitor_start(paste0("Drop Combo(", paste(combination, collapse = " + "), ")"),
                                           "Drop Combo")
+                        #-----------------------------------------------------#
 
                         # Order current combination alphabetically
                         reordered_combo <- paste(sort(combination), collapse = "+")
@@ -681,24 +714,35 @@ summarise_plus <- function(data_frame,
                         monitor_df <- monitor_df |> monitor_end()
                     }
 
+                    #---------------------------------------------------------#
                     monitor_df <- monitor_df |>
                         monitor_start(paste0("Formats(", paste(combination, collapse = " + "), ")"),
                                       paste0("Formats(", paste(combination, collapse = " + "), ")"))
+                    #---------------------------------------------------------#
 
-                    # Remove NAs from grouping variables
+                    # Remove NAs from grouping variables. This has to be done individually, because
+                    # if otherwise done before in general, too many observations would be removed.
+                    # E.g. two of three variables don't have NA values, then the removal of NA values in
+                    # the third variable would also effect the first two variables. To get the maximum
+                    # out of each combination this is done for every combination separately.
                     if (na.rm){
-                        data_frame <- original_df[stats::complete.cases(original_df[combination]), ]
+                        if (flag_shortcut){
+                            data_frame <- original_df_shortcut[!collapse::missing_cases(original_df_shortcut[combination]), ]
+                        }
+                        else{
+                            data_frame <- original_df[!collapse::missing_cases(original_df[combination]), ]
+                        }
                     }
 
                     message("   + ", paste(combination, collapse = " + "))
                     get_group_missings(original_df[combination], notes, na.rm)
 
+                    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                    # Shortcut crossroad
+                    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
                     if (flag_shortcut){
-                        # Convert numeric variables back which have become characters during summarisation
-                        # and apply formats
-                        group_df <- data_frame |>
-                            convert_numeric(combination) |>
-                            apply_format(formats, combination)
+                        group_df <- data_frame |> apply_format(formats, combination)
 
                         # Final summarise with formatted data frame
                         group_df <- group_df |>
@@ -713,9 +757,8 @@ summarise_plus <- function(data_frame,
                     }
                     else{
                         # Apply formats first
-                        group_df <- data_frame |>
-                            keep(combination, values, weight_var) |>
-                            apply_format(formats, combination)
+                        group_df <- data_frame |> collapse::fselect(combination, values, weight_var)
+                        group_df <- group_df |> apply_format(formats, combination)
 
                         monitor_df <- monitor_df |> monitor_end()
 
@@ -729,39 +772,77 @@ summarise_plus <- function(data_frame,
                                              group_df[[weight_var]],
                                              selected_stats,
                                              list_of_statistics,
-                                             monitor_df)
+                                             monitor_df,
+                                             !flag_shortcut)
 
                         fast_pct <- FALSE
                     }
 
+                    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                     # Compute percentages
-                    if (length(types) == 0){
-                        if (length(combination) == 1){
-                            # If there is only one grouping variable the super group will be
-                            # NULL and therefore can't be grouped. The super total therefore
-                            # is simply the grand total.
-                            group_list <- compute_total_percentages_short(group_list[[1]],
-                                                                          total_df_copy,
-                                                                          statistics,
-                                                                          sum_columns,
-                                                                          combination,
-                                                                          "pct_group",
-                                                                          group_list[[2]])
-                        }
-                        else{
-                            # Evaluate the group percentages based on the super group.
-                            # Since the depending super group is already computed
-                            # in one of the previous iterations we can make use of
-                            # that and simply join the super_df accordingly.
-                            super_group <- paste(combination[-length(combination)], collapse = "+")
+                    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-                            group_list <- compute_group_percentages_short(group_list[[1]],
-                                                                          all_results[[super_group]],
-                                                                          statistics,
-                                                                          combination,
-                                                                          sum_columns,
-                                                                          group_list[[2]],
-                                                                          fast_pct)
+                    if (length(types) == 0){
+                        # Single variable combinations
+                        if (length(combination) == 1){
+                            if (!na.rm){
+                                # If there is only one grouping variable the super group will be
+                                # NULL and therefore can't be grouped. The super total therefore
+                                # is simply the grand total.
+                                group_list <- compute_total_percentages_short(group_list[[1]],
+                                                                              total_df_copy,
+                                                                              statistics,
+                                                                              sum_columns,
+                                                                              combination,
+                                                                              "pct_group",
+                                                                              group_list[[2]])
+                            }
+                            else{
+                                # If NA values should be removed, the group percentages are computed
+                                # as usual so that each variable can be 100 % individually.
+                                group_list <- compute_group_percentages(data_frame,
+                                                                        group_list[[1]],
+                                                                        statistics,
+                                                                        combination,
+                                                                        formats,
+                                                                        values,
+                                                                        weight_var,
+                                                                        list_of_statistics,
+                                                                        group_list[[2]],
+                                                                        fast_pct)
+                            }
+                        }
+                        # Combinations of more than one variable
+                        else{
+                            if (!na.rm){
+                                # Evaluate the group percentages based on the super group.
+                                # Since the depending super group is already computed
+                                # in one of the previous iterations we can make use of
+                                # that and simply join the super_df accordingly.
+                                super_group <- paste(combination[-length(combination)], collapse = "+")
+
+                                group_list <- compute_group_percentages_short(group_list[[1]],
+                                                                              all_results[[super_group]],
+                                                                              statistics,
+                                                                              combination,
+                                                                              sum_columns,
+                                                                              group_list[[2]],
+                                                                              fast_pct)
+                            }
+                            else{
+                                # If NA values should be removed, the group percentages are computed
+                                # as usual so that each variable combination can be 100 % individually.
+                                group_list <- compute_group_percentages(data_frame,
+                                                                        group_list[[1]],
+                                                                        statistics,
+                                                                        combination,
+                                                                        formats,
+                                                                        values,
+                                                                        weight_var,
+                                                                        list_of_statistics,
+                                                                        group_list[[2]],
+                                                                        fast_pct)
+                            }
                         }
                     }
                     # When types are specified
@@ -786,13 +867,19 @@ summarise_plus <- function(data_frame,
                                                                   "pct_total",
                                                                   group_list[[2]])
 
+                    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                    # Clean up
+                    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
                     # Split results and monitor
                     group_df   <- group_list[[1]]
                     monitor_df <- group_list[[2]]
 
+                    #---------------------------------------------------------#
                     monitor_df <- monitor_df |>
                         monitor_start(paste0("Finish(", paste(combination, collapse = " + "), ")"),
                                       paste0("Finish(", paste(combination, collapse = " + "), ")"))
+                    #---------------------------------------------------------#
 
                     # Every grouping variable which was not part of the current grouping
                     # gets set to a missing value
@@ -813,9 +900,15 @@ summarise_plus <- function(data_frame,
             }
         }
 
-        message("\n > Putting results together.")
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # Additional clean up
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+        message("\n > Putting results together")
+
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_start("Clean up", "Clean up")
+        #---------------------------------------------------------------------#
 
         # Put all computed data frames one below the other and sort the variables
         # in the order: groups -> types -> results
@@ -839,9 +932,10 @@ summarise_plus <- function(data_frame,
             result_df <- result_df |> collapse::fsubset(TYPE != "total")
         }
 
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_end()
         monitor_df |> monitor_plot(by = "group", draw_plot = monitor)
-
+        #---------------------------------------------------------------------#
     }
 
     # Drop pseudo group variable if there is one
@@ -940,9 +1034,16 @@ matrix_summarise <- function(data_frame,
                              weight,
                              statistics,
                              list_of_statistics,
-                             monitor_df){
+                             monitor_df,
+                             flag_shortcut = TRUE){
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Preparation
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_start("Matrix conversion", paste0("Calc(", paste(group_vars, collapse = " + "), ")"))
+    #-------------------------------------------------------------------------#
 
     # Temporarily rename "." in factor variable levels, if there are any. This is
     # necessary because later the matrix row names need to be split by ".". If there
@@ -954,27 +1055,32 @@ matrix_summarise <- function(data_frame,
     }
 
     # Convert the value columns of the data frame into a matrix
-    value_matrix  <- as.matrix(data_frame[, values, with = FALSE])
+    value_matrix <- collapse::qM(data_frame |> collapse::fselect(values))
 
     # Create group
     if (is.null(group_vars)){
         # In case there is no grouping (e.g. total percentages) create pseudo group
         group_vars <- "pseudo_group"
         data_frame[[group_vars]] <- 1
-        grouping <- collapse::GRP(data_frame, group_vars)
+        grouping <- collapse::GRP(data_frame, group_vars, sort = flag_shortcut)
 
     }
     else{
-        grouping <- collapse::GRP(data_frame, group_vars)
+        grouping <- collapse::GRP(data_frame, group_vars, sort = flag_shortcut)
     }
 
     monitor_df <- monitor_df |> monitor_end()
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Compute statistics and put results into a list
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     result_list <- lapply(names(statistics), function(single_stat){
         # Skip sum and do it separately to keep group text information.
         if (single_stat != "sum"){
+            #-----------------------------------------------------------------#
             monitor_df <- monitor_df |> monitor_start(single_stat, paste0("Calc(", paste(group_vars, collapse = " + "), ")"))
+            #-----------------------------------------------------------------#
 
             # Get functions one by one from the global list
             stat_function <- list_of_statistics[[single_stat]]
@@ -984,22 +1090,28 @@ matrix_summarise <- function(data_frame,
                 stat_function(value_matrix, w = weight, g = grouping))
 
             # Put stat name at the end of variable name
-            if (nrow(stat_result) > 0){
+            if (collapse::fnrow(stat_result) > 0){
                 data.table::setnames(stat_result, paste0(values, "_", single_stat))
             }
 
             monitor_df <- monitor_df |> monitor_end()
 
-            list(stat_result, monitor_df[nrow(monitor_df), ])
+            list(stat_result, monitor_df[collapse::fnrow(monitor_df), ])
         }
     })
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Put results back together
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     # Separate results from monitoring
     monitor_list <- lapply(result_list, `[[`, 2)
     monitor_df   <- rbind(monitor_df,
                           do.call(rbind, monitor_list))
 
+    #-------------------------------------------------------------------------#
     monitor_df  <- monitor_df |> monitor_start("sum", paste0("Calc(", paste(group_vars, collapse = " + "), ")"))
+    #-------------------------------------------------------------------------#
 
     result_list <- lapply(result_list, `[[`, 1)
 
@@ -1036,7 +1148,9 @@ matrix_summarise <- function(data_frame,
 
     # Do weight of sums separately because this only needs to be computed once
     # and not per value variable.
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("sum_wgt", paste0("Calc(", paste(group_vars, collapse = " + "), ")"))
+    #-------------------------------------------------------------------------#
 
     sum_wgt <- data.table::as.data.table(
         sum_wgt_qol(values = weight, group = grouping))
@@ -1044,7 +1158,9 @@ matrix_summarise <- function(data_frame,
     data.table::setnames(sum_wgt, "sum_wgt")
 
     # Combine grouping variables with results to a full data table
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Combine evaluations", paste0("Calc(", paste(group_vars, collapse = " + "), ")"))
+    #-------------------------------------------------------------------------#
 
     if (!"pseudo_group" %in% names(restored_group)){
         # Normal case with grouping variables
@@ -1125,8 +1241,8 @@ reorder_summarised_columns <- function(data_frame, requested_stats){
              value = TRUE)
     }))
 
-    ordered_cols <- unique(ordered_cols)
+    ordered_cols <- collapse::funique(ordered_cols)
 
     # Put the ordered columns at the end of the data frame
-    data_frame |> data.table::setcolorder(ordered_cols, after = ncol(data_frame))
+    data_frame |> data.table::setcolorder(ordered_cols, after = collapse::fncol(data_frame))
 }

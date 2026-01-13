@@ -5,9 +5,24 @@
 # but without drawing the whole outputs on screen.
 ###############################################################################
 
+set_style_options(as_heatmap = TRUE)
+
 dummy_df  <- suppressMessages(dummy_data(1000))
-sum_df    <- suppressMessages(dummy_df |>
+dummy_big <- suppressMessages(dummy_data(10000))
+
+dummy_df[["binary"]] <- replicate(nrow(dummy_df), {
+    paste0(sample(0:1, 2, replace = TRUE), collapse = "")
+})
+
+sum_df   <- suppressMessages(dummy_df |>
     summarise_plus(class      = c(year, sex),
+                   values     = weight,
+                   statistics = c("sum"),
+                   nesting    = "deepest",
+                   na.rm      = TRUE))
+
+sum_df2  <- suppressMessages(dummy_df |>
+    summarise_plus(class      = c(year, sex, age),
                    values     = weight,
                    statistics = c("sum"),
                    nesting    = "deepest",
@@ -15,7 +30,7 @@ sum_df    <- suppressMessages(dummy_df |>
 
 
 test_that("Simplest form of any_table", {
-    result_list <- suppressMessages(dummy_df |>
+    result_list <- suppressMessages(dummy_big |>
           any_table(rows    = "age",
                     columns = "sex",
                     values  = weight,
@@ -23,6 +38,9 @@ test_that("Simplest form of any_table", {
 
     expect_type(result_list, "list")
     expect_equal(length(result_list), 3)
+    expect_equal(names(result_list[[1]]), c("row.label", "var1", "weight_sum_1",
+                                            "weight_sum_2", "weight_sum_NA"))
+    expect_equal(result_list[[1]][["var1"]], c(paste0(0:99), "."))
 })
 
 
@@ -144,8 +162,46 @@ test_that("any_table with interleaved order", {
                       order_by   = "interleaved",
                       print      = FALSE))
 
-    expect_type(result_list, "list")
-    expect_equal(length(result_list), 3)
+    expect_equal(names(result_list[[1]]),
+                       c("row.label", "var1", "weight_sum_1", "weight_freq_1", "weight_missing_1",
+                         "weight_sum_2", "weight_freq_2", "weight_missing_2", "weight_sum_NA", "weight_freq_NA",
+                         "weight_missing_NA"))
+})
+
+
+test_that("any_table with values order", {
+    result_list <- suppressMessages(dummy_df |>
+            any_table(rows       = "age",
+                      columns    = c("sex", "year"),
+                      values     = c(weight, income),
+                      statistics = "sum",
+                      order_by   = "values",
+                      print      = FALSE))
+
+    year <- as.integer(format(Sys.Date(), "%Y"))
+
+    expect_equal(names(result_list[[1]]),
+                 c("row.label", "var1", "weight_sum_1", "weight_sum_2", "weight_sum_NA",
+                   paste0("weight_sum_", year - 2), paste0("weight_sum_", year - 1), "income_sum_1", "income_sum_2",
+                   "income_sum_NA", paste0("income_sum_", year - 2), paste0("income_sum_", year - 1)))
+})
+
+
+test_that("any_table with columns order", {
+    result_list <- suppressMessages(dummy_df |>
+            any_table(rows       = "age",
+                      columns    = c("sex", "year"),
+                      values     = c(weight, income),
+                      statistics = "sum",
+                      order_by   = "columns",
+                      print      = FALSE))
+
+    year <- as.integer(format(Sys.Date(), "%Y"))
+
+    expect_equal(names(result_list[[1]]),
+                 c("row.label", "var1", "weight_sum_1", "weight_sum_2", "weight_sum_NA",
+                   "income_sum_1", "income_sum_2", "income_sum_NA", paste0("weight_sum_", year - 2),
+                   paste0("weight_sum_", year - 1), paste0("income_sum_", year - 2), paste0("income_sum_", year - 1)))
 })
 
 
@@ -175,13 +231,26 @@ test_that("any_table with multiple by variables", {
 })
 
 
-test_that("any_table with by variables", {
+test_that("any_table with by variables and multiple row and column variables", {
+    result_list <- dummy_df |>
+           any_table(rows    = c("first_person", "state", "first_person + state"),
+                     columns = c("sex", "education", "sex + education"),
+                     values  = weight,
+                     by      = year,
+                     print   = FALSE,
+                     na.rm   = TRUE)
+
+    expect_true("BY" %in% names(result_list[["table"]]))
+})
+
+
+test_that("any_table with by variables aborts if by is also part of rows or columns", {
     expect_message(result_list <- dummy_df |>
             any_table(rows    = "age",
                       columns = "sex",
                       values  = weight,
                       by      = sex,
-                      print   = FALSE), " X ERROR: The provided by variable 'sex' is also part of")
+                      print   = FALSE), " X ERROR: The provided <by> variable 'sex' is also part of")
 })
 
 
@@ -271,6 +340,62 @@ test_that("any_table with applied interval multilabels", {
 })
 
 
+test_that("any_table able to apply format on numeric values stored as character (short route)", {
+    binary. <- discrete_format(
+        "binary1" = c("00", "01"),
+        "binary2" = c("10", "11"))
+
+    result_list <- suppressMessages(dummy_df |>
+        any_table(rows    = "binary",
+                  columns = "sex",
+                  values  = weight,
+                  formats = list(binary = binary.),
+                  print   = FALSE))
+
+    expect_equal(result_list[[1]][["var1"]], c("binary1", "binary2"))
+})
+
+
+test_that("any_table converts numeric values stored as character to numeric, if no format is applied (short route)", {
+    result_list <- suppressMessages(dummy_df |>
+            any_table(rows    = "binary",
+                      columns = "sex",
+                      values  = weight,
+                      print   = FALSE))
+
+    expect_equal(result_list[[1]][["var1"]], c("0", "1", "10", "11"))
+})
+
+
+test_that("any_table able to apply format on numeric values stored as character (long route)", {
+    binary. <- discrete_format(
+        "binary1" = c("00", "01"),
+        "binary2" = c("10", "11"))
+
+    result_list <- suppressMessages(dummy_df |>
+            any_table(rows       = "binary",
+                      columns    = "sex",
+                      statistics = "mean",
+                      values     = weight,
+                      formats    = list(binary = binary.),
+                      print      = FALSE))
+
+    expect_equal(result_list[[1]][["var1"]], c("binary1", "binary2"))
+})
+
+
+test_that("any_table converts numeric values stored as character to numeric, if no format is applied (long route)", {
+    result_list <- suppressMessages(dummy_df |>
+            any_table(rows       = "binary",
+                      columns    = "sex",
+                      statistics = "mean",
+                      values     = weight,
+                      print      = FALSE))
+
+    expect_equal(result_list[[1]][["var1"]], c("0", "1", "10", "11"))
+})
+
+
 test_that("any_table with fixed column headers", {
     result_list <- suppressMessages(dummy_df |>
             any_table(rows    = "age",
@@ -316,8 +441,8 @@ test_that("any_table warning with wrong output format", {
                        any_table(rows    = "age",
                                  columns = "sex",
                                  values  = weight,
-                                 output  = "Text",
-                                 print   = FALSE), " ! WARNING: Output format 'Text' not available.")
+                                 output  = "Test",
+                                 print   = FALSE), " ! WARNING: <Output> format 'Test' not available.")
 })
 
 
@@ -326,19 +451,8 @@ test_that("any_table warning with wrong output format", {
                        any_table(rows     = "age",
                                  columns  = "sex",
                                  values   = weight,
-                                 order_by = "Test",
-                                 print    = FALSE), " ! WARNING: Order by option 'Test' doesn't exist")
-})
-
-
-test_that("any_table pct_value won't work without sum", {
-    expect_message(result_list <- dummy_df |>
-                       any_table(rows       = "age",
-                                 columns    = "sex",
-                                 values     = weight,
-                                 statistics = c("pct_value", "freq"),
-                                 pct_value  = list(rate = "Test1 / Test2"),
-                                 print      = FALSE), " ! WARNING: pct_value can only be computed in combination with statistic")
+                                 order_by = "test",
+                                 print    = FALSE), " ! WARNING: <Order by> option 'test' doesn't exist")
 })
 
 
@@ -347,8 +461,20 @@ test_that("any_table with pre summarised data", {
        any_table(rows       = "year",
                  columns    = "sex",
                  values     = weight_sum,
-                 pre_summed = TRUE,
                  print      = FALSE))
+
+    expect_type(result_list, "list")
+    expect_equal(length(result_list), 3)
+})
+
+
+test_that("any_table with pre summarised data and by variables", {
+    result_list <- suppressMessages(sum_df2 |>
+                any_table(rows       = "year",
+                          columns    = "age",
+                          by         = "sex",
+                          values     = weight_sum,
+                          print      = FALSE))
 
     expect_type(result_list, "list")
     expect_equal(length(result_list), 3)
@@ -365,16 +491,59 @@ test_that("any_table with no column variables", {
     expect_equal(length(result_list), 3)
 })
 
+
+test_that("any_table throws a warning, if invalid statistic specified", {
+    expect_message(result_list <- dummy_df |>
+               any_table(rows       = "age",
+                         columns    = "sex",
+                         values     = weight,
+                         statistics = c("test", "sum"),
+                         print      = FALSE), " ! WARNING: <Statistic> 'test' is invalid and will be omitted.")
+})
+
+
+test_that("any_table throws a warning, if no valid statistic specified", {
+    expect_message(result_list <- dummy_df |>
+               any_table(rows       = "age",
+                         columns    = "sex",
+                         values     = weight,
+                         statistics = "test",
+                         print      = FALSE), " ! WARNING: No valid <statistic> selected. 'sum' will be used.")
+})
+
+
+test_that("Save any_table as Excel file", {
+    temp_file <- tempfile(fileext = ".xlsx")
+    on.exit(unlink(temp_file), add = TRUE)
+
+    suppressMessages(dummy_df |>
+        any_table(rows    = "age",
+                  columns = "sex",
+                  values  = weight,
+                  style   = excel_output_style(save_path = dirname(temp_file),
+                                               file      = basename(temp_file))))
+
+    expect_true(file.exists(temp_file))
+})
+
 ###############################################################################
 # Abort checks
 ###############################################################################
+
+test_that("any_table aborts, if column contains a row variable", {
+    expect_message(result_list <- dummy_df |>
+                       any_table(rows       = "sex",
+                                 columns    = "sex",
+                                 statistics = c("sum"),
+                                 print      = FALSE), " X ERROR: The provided <columns> variable '")
+})
 
 test_that("any_table aborts with duplicate column names after pivot", {
     expect_message(result_list <- dummy_df |>
         any_table(rows    = "education",
                   columns = c("sex + age", "age + sex"),
                   values  = weight,
-                  print   = FALSE), " X ERROR: Duplicate column names found")
+                  print   = FALSE), " X ERROR: Duplicate <columns> names found")
 })
 
 
@@ -383,7 +552,7 @@ test_that("any_table aborts with none existent row variable", {
           any_table(rows    = c("age", "age + test"),
                     columns = "sex",
                     values  = weight,
-                    print   = FALSE), " X ERROR: The provided row variable 'test' is not part of")
+                    print   = FALSE), " X ERROR: The provided <rows> variable 'test' is not part of")
 })
 
 
@@ -392,7 +561,7 @@ test_that("any_table aborts with none existent column variable", {
           any_table(rows    = "age",
                     columns = c("sex + test"),
                     values  = weight,
-                    print   = FALSE), " X ERROR: The provided column variable 'test' is not part of")
+                    print   = FALSE), " X ERROR: The provided <columns> variable 'test' is not part of")
 })
 
 
@@ -401,7 +570,7 @@ test_that("any_table aborts with no valid row variables", {
            any_table(rows    = "",
                      columns = "sex",
                      values  = weight,
-                     print   = FALSE), " X ERROR: No valid row variables provided")
+                     print   = FALSE), " X ERROR: No valid <rows> variables provided")
 })
 
 
@@ -409,9 +578,9 @@ test_that("any_table aborts with invalid by variable", {
     expect_message(result_list <- dummy_df |>
            any_table(rows    = "age",
                      columns = "sex",
-                     by      = "Test",
+                     by      = "test",
                      values  = weight,
-                     print   = FALSE), " ! WARNING: The provided by variable 'Test' is not part of")
+                     print   = FALSE), " ! WARNING: The provided <by> variable 'test' is not part of")
 })
 
 
@@ -420,7 +589,7 @@ test_that("any_table aborts with invalid values", {
            any_table(rows    = "age",
                      columns = "sex",
                      values  = "",
-                     print   = FALSE), " X ERROR: No values provided.")
+                     print   = FALSE), " X ERROR: No <values> provided.")
 })
 
 
@@ -429,28 +598,39 @@ test_that("any_table aborts with row/column variable part of values", {
            any_table(rows    = "age",
                      columns = "sex",
                      values  = "sex",
-                     print   = FALSE), " x ERROR: The provided row/column variable 'sex' is also part of")
+                     print   = FALSE), " x ERROR: The provided <rows>/<columns> variable 'sex' is also part of")
 })
 
 
-test_that("any_table aborts with only invalid pct_value statistic", {
+test_that("any_table outputs sum values with only invalid pct_value statistic and throws a warning", {
     expect_message(result_list <- dummy_df |>
-                       any_table(rows       = "age",
-                                 columns    = "sex",
-                                 values     = weight,
-                                 statistics = c("pct_value"),
-                                 pct_value  = list(rate = "Test1 / Test2"),
-                                 print      = FALSE), " X ERROR: pct_value can only be computed in combination with statistic")
+           any_table(rows       = "age",
+                     columns    = "sex",
+                     values     = weight,
+                     statistics = c("pct_value"),
+                     pct_value  = list(rate = "Test1 / Test2"),
+                     print      = FALSE), " ! WARNING: Variable 'Test1' not found in the data frame.")
+
+    expect_equal(names(result_list[[1]]), c("row.label", "var1", "weight_sum_1",
+                                            "weight_sum_2", "weight_sum_NA"))
 })
 
 
 test_that("any_table aborts with missing statistic extension in pre summarised data", {
     expect_message(result_list <- sum_df |>
-                       any_table(rows       = "year",
-                                 columns    = "sex",
-                                 values     = TYPE_NR,
-                                 pre_summed = TRUE,
-                                 print      = FALSE), " X ERROR: All value variables need to have the statistic extensions in their variable names")
+           any_table(rows       = "year",
+                     columns    = "sex",
+                     values     = TYPE_NR,
+                     print      = FALSE), " X ERROR: All <values> variables need to have the <statistic> extensions in their variable names")
+})
+
+
+test_that("any_table aborts with missing variable combination in pre summarised data", {
+    expect_message(result_list <- sum_df2 |>
+           any_table(rows       = c("year", "age"),
+                     columns    = "sex",
+                     values     = weight_sum,
+                     print      = FALSE), " X ERROR: The variable combination of '")
 })
 
 
@@ -472,7 +652,13 @@ test_that("Combine tables into a single workbook", {
                            by      = education,
                            print   = FALSE))
 
-    result <- combine_into_workbook(tab1, tab2, print = FALSE)
+    temp_file <- tempfile(fileext = ".xlsx")
+    on.exit(unlink(temp_file), add = TRUE)
+
+    result <- combine_into_workbook(tab1, tab2, file = temp_file)
 
     expect_type(result, "environment")
+    expect_true(file.exists(temp_file))
 })
+
+set_style_options(as_heatmap = FALSE)

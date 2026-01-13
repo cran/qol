@@ -1,15 +1,15 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# qol - Quality of Life <img src='man/figures/logo.png' width="150px" align="right"/>
+# qol - Quality of Life <img src='man/figures/logo.png' width="150px" align="right" alt='Logo'/>
 
 <!-- badges: start -->
 
-[![SAS](https://img.shields.io/badge/SAS-R-orange%20.svg)](https://github.com/s3rdia/qol)
+[![SAS](https://img.shields.io/badge/SAS-R-orange.svg)](https://github.com/s3rdia/qol)
 [![CRAN
 Version](https://www.r-pkg.org/badges/version/qol?color=green)](https://cran.r-project.org/package=qol)
 [![DEVELOPMENT
-Version](https://img.shields.io/badge/GitHub-1.1.1-blue.svg)](https://github.com/s3rdia/qol)
+Version](https://img.shields.io/badge/GitHub-1.2.0-blue.svg)](https://github.com/s3rdia/qol)
 [![CRAN
 checks](https://badges.cranchecks.info/summary/qol.svg)](https://cran.r-project.org/web/checks/check_results_qol.html)
 <!-- badges: end -->
@@ -49,8 +49,6 @@ readable and user friendly for creating larger and more complex outputs
 at the same time.
 
 ``` r
-library(qol)
-
 # Creating format containers
 age. <- discrete_format(
     "Total"          = 0:100,
@@ -114,7 +112,7 @@ summary_df <- my_data |>
                    notes      = FALSE)
 ```
 
-<img src='man/figures/output.png'/>
+<img src='man/figures/output.png' alt="Example output data frame"/>
 
 The operations based on summarisation are the fastest. Other operations
 take a bit longer but still work fast with big datasets.
@@ -132,8 +130,6 @@ table, instead of thinking hard about how to calculate where to put a
 border or to even manually prepare a designed workbook.
 
 ``` r
-library(qol)
-
 my_data <- dummy_data(100000)
 
 # Create format containers
@@ -157,16 +153,17 @@ education. <- discrete_format(
     "high education"   = "high")
     
 # Define style
-my_style <- excel_output_style(column_widths = c(2, 15, 15, 15, 9))
+set_style_options(column_widths = c(2, 15, 15, 15, 9))
 
 # Define titles and footnotes. If you want to add hyperlinks you can do so by
 # adding "link:" followed by the hyperlink to the main text.
-titles <- c("This is title number 1 link: https://cran.r-project.org/",
-            "This is title number 2",
-            "This is title number 3")
-footnotes <- c("This is footnote number 1",
-               "This is footnote number 2",
-               "This is footnote number 3 link: https://cran.r-project.org/")
+set_titles("This is title number 1 link: https://cran.r-project.org/",
+           "This is title number 2",
+           "This is title number 3")
+
+set_footnotes("This is footnote number 1",
+              "This is footnote number 2",
+              "This is footnote number 3 link: https://cran.r-project.org/")
 
 # Output complex tables with different percentages
 my_data |> any_table(rows       = c("sex + age", "sex", "age"),
@@ -176,50 +173,51 @@ my_data |> any_table(rows       = c("sex + age", "sex", "age"),
                      pct_group  = c("sex", "age"),
                      formats    = list(sex = sex., age = age.,
                                        education = education.),
-                     titles     = titles,
-                     footnotes  = footnotes,
-                     style      = my_style,
                      na.rm      = TRUE)
+
+reset_style_options()
+reset_qol_options()
 ```
 
-<img src='man/figures/tabulation.png'/>
+<img src='man/figures/tabulation.png' alt="Example output table"/>
 
 You can also combine multiple tables in one workbook, each on a
 different sheet, and save the file, instead of just viewing it.
 
 ``` r
-my_style <- my_style |> modify_output_style(sheet_name = "age_sex")
+# Set output and style options globally
+set_style_options(save_path  = "C:/My_folder/",
+                  file       = "My_workbook.xlsx",
+                  sheet_name = "age_sex")
 
 # Capture the output of any_table() to get a list which contains the data frame
 # as well as the formatted workbook.
-# Note: You can set print to FALSE to prevent the workbook from opening.
+# Note: Set print to FALSE to prevent the workbook from being saved to early.
 result_list <- my_data |>
            any_table(rows       = c("age"),
                      columns    = c("sex"),
                      values     = weight,
                      statistics = c("sum"),
                      formats    = list(sex = sex., age = age.),
-                     style      = my_style,
                      na.rm      = TRUE,
                      print      = FALSE)
 
-# Set a new sheet name and define where the final workbook should be saved
-my_style <- my_style |> modify_output_style(sheet_name = "edu_year",
-                                            file       = "C:/My_folder/My_workbook.xlsx")
+# Set a new sheet name for the next table
+set_style_options(sheet_name = "edu_year")
 
 # Pass on the workbook from before to the next any_table()
+# print is now TRUE so the workbook will be saved.
 my_data |> any_table(workbook   = result_list[["workbook"]],
                      rows       = c("education"),
                      columns    = c("year"),
                      values     = weight,
                      statistics = c("pct_group"),
                      formats    = list(education = education.),
-                     style      = my_style,
                      na.rm      = TRUE)
                      
 # For safety set file back to NULL at the end. Otherwise the next any_table() will overwrite
 # the existing file.
-my_style <- my_style |> modify_output_style(file = NULL)
+close_file()
 ```
 
 In case you have a good amount of tables, you want to combine in a
@@ -227,7 +225,8 @@ single workbook, you can also catch the outputs and combine them
 afterwards in one go:
 
 ``` r
-my_style <- my_style |> modify_output_style(sheet_name = "age_sex")
+# Set output and style options globally
+set_style_options(sheet_name = "age_sex")
 
 # Catch the output as shown before, but additionally use the option -> output = "excel_nostyle".
 # This skips the styling part, so that the function runs faster. The styling is done later on.
@@ -237,19 +236,18 @@ tab1 <- my_data |>
                  values     = weight,
                  statistics = c("sum"),
                  formats    = list(sex = sex., age = age.),
-                 style      = my_style,
                  na.rm      = TRUE,
                  print      = FALSE,
                  output     = "excel_nostyle")
 
 # Now let's asume you create a bunch of different tables
-my_style <- my_style |> modify_output_style(sheet_name = "sheet2")
+my_style <- my_style |> set_style_options(sheet_name = "sheet2")
 tab2     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
 
-my_style <- my_style |> modify_output_style(sheet_name = "sheet3")
+my_style <- my_style |> set_style_options(sheet_name = "sheet3")
 tab3     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
 
-my_style <- my_style |> modify_output_style(sheet_name = "sheet4")
+my_style <- my_style |> set_style_options(sheet_name = "sheet4")
 tab4     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
 
 ...
@@ -270,8 +268,6 @@ Available methods are: left, right, inner, full, outer, left_inner,
 right_inner.
 
 ``` r
-library(qol)
-
 # Simple join
 df1 <- data.frame(key = c(1, 1, 1, 2, 2, 2),
                   a   = c("a", "a", "a", "a", "a", "a"))
@@ -301,14 +297,65 @@ multiple_joined3 <- multi_join(list(df1b, df2b, df3b),
                                how = c("left", "right"))
 ```
 
+## Transpose like never before
+
+Transpose, weight results and generate additional categories all in one
+operation. Put variables side by side or nest them or both, just as you
+need it. And of course you can transpose multiple variables from wide
+into long format in one go.
+
+``` r
+# Transpose from long to wide and use a multilabel to generate additional categories
+long_to_wide <- my_data |>
+    transpose_plus(preserve = c(year, age),
+                   pivot    = c("sex + education", "sex", "education"),
+                   values   = income,
+                   formats  = list(sex = sex., age = age.),
+                   weight   = weight,
+                   na.rm    = TRUE)
+
+# Transpose back from wide to long
+wide_to_long <- long_to_wide |>
+    transpose_plus(preserve = c(year, age),
+                   pivot    = list(sex       = c("Total", "Male", "Female"),
+                                   education = c("low", "middle", "high")))
+```
+
+## Sorting with additions
+
+Sort cases while preserving the order of certain variables or make use
+of formats to sort in format order, which can be used to e.g. sort a
+character variable in another than alphabetical order without creating a
+temporary variable just for sorting.
+
+``` r
+education. <- discrete_format(
+    "1" = "low",
+    "2" = "middle",
+    "3" = "high")
+
+# Simple sorting
+sort_df1 <- my_data |> sort_plus(by = c(state, sex, age))
+sort_df2 <- my_data |> sort_plus(by    = c(state, sex, age),
+                                 order = c("ascending", "descending"))
+
+# Character variables will normally be sorted alphabetically. With the help
+# of a format this variable can be sorted in a completely different way.
+sort_df3 <- my_data |> sort_plus(by      = education,
+                                 formats = list(education = education.))
+
+# Preserve the order of the character variable, otherwise it couldn't stay in
+# it's current order.
+sort_df4 <- sort_df3 |> sort_plus(by       = age,
+                                  preserve = education)
+```
+
 ## Readability
 
 There are also some functions which enhance the readability of the code.
 For example if - else if - else statements like in other languages:
 
 ``` r
-library(qol)
-
 # Example data frame
 my_data <- dummy_data(1000)
 
@@ -343,7 +390,7 @@ This package also includes some basic yet very effective performance
 monitoring functions. The heavier functions in this package already make
 use of them and can show how they work internally like this:
 
-<img src='man/figures/monitor.png'/>
+<img src='man/figures/monitor.png' alt='Monitoring example'/>
 
 ## Customizing Visual Appearance
 
@@ -353,4 +400,4 @@ you can create a full theme file and decide which parts of the editor
 receive which colors. The themes shown below and the corresponding code
 can be found on GitHub.
 
-<img src='man/figures/theme.png'/>
+<img src='man/figures/theme.png' alt='Theme examples'/>

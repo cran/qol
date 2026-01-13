@@ -25,35 +25,52 @@
 #' 4.1.0 or higher
 #'
 #' @section Functions:
-#' Creating formats: [discrete_format()], [interval_format()].
+#' Creating formats: [discrete_format()], [interval_format()]
 #'
-#' Summarisation and tabulation: [summarise_plus()], [frequencies()], [crosstabs()], [any_table()], [export_with_style()], [combine_into_workbook()].
+#' Summarisation and tabulation: [summarise_plus()], [frequencies()], [crosstabs()], [any_table()], [export_with_style()], [combine_into_workbook()]
 #'
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
-#' [number_format_style()], [modify_number_formats()].
+#' [number_format_style()], [modify_number_formats()]
 #'
-#' Recoding: [recode()], [recode_multi()].
+#' Recoding: [recode()], [recode_multi()]
 #'
-#' Selecting: [keep()], [dropp()].
+#' Selecting: [keep()], [dropp()], [inverse()], [vars_between()]
 #'
 #' Joining: [multi_join()]
 #'
-#' If-statement: [if.()], [else_if.()], [else.()].
+#' Transposing: [transpose_plus()]
 #'
-#' Monitoring: [monitor_start()], [monitor_end()], [monitor_next()], [monitor_plot()].
+#' Sorting: [sort_plus()]
 #'
-#' Renaming: [rename_pattern()], [add_extension()], [remove_stat_extension()].
+#' If-statement: [if.()], [else_if.()], [else.()]
 #'
-#' Retaining: [running_number()], [mark_case()], [retain_value()], [retain_sum()]
+#' Monitoring: [monitor_start()], [monitor_end()], [monitor_next()], [monitor_plot()]
+#'
+#' Renaming: [rename_pattern()], [add_extension()], [remove_stat_extension()], [replace_except()]
+#'
+#' Retaining: [running_number()], [mark_case()], [retain_value()], [retain_sum()], [retain_variables()]
 #'
 #' Generate dummy data: [dummy_data()]
 #'
-#' Small helpers: [libname()], [inverse()], [setcolorder_by_pattern()],
-#' [drop_type_vars()], [fuse_variables()], [get_excel_range()], [replace_except()].
+#' Conversion: [args_to_char()], [dots_to_char()], [get_origin_as_char()] [convert_numeric()], [convert_factor()]
 #'
-#' Split data frame: [split_by_var()], [split_by_condition()].
+#' Loading: [libname()], [set()]
 #'
-#' Other: [build_master()], [build_rstheme()], [args_to_char()], [convert_numeric()], [is_numeric()]
+#' Reporting: [content_report()]
+#'
+#' Small helpers: [setcolorder_by_pattern()], [drop_type_vars()],
+#' [fuse_variables()], [get_excel_range()], [get_integer_length()]
+#'
+#' Split data frame: [split_by]
+#'
+#' Error handling: [resolve_intersection()], [part_of_df()], [remove_doubled_values()], [check_weight()]
+#'
+#' Global options: [set_style_options()], [reset_style_options()], [get_style_options()], [close_file()],
+#' [set_variable_labels()], [get_variable_labels()], [set_stat_labels()], [get_stat_labels()],
+#' [set_print()], [get_print()], [set_monitor()], [get_monitor()], [set_na.rm()], [get_na.rm()],
+#' [set_output()], [get_output()], [set_titles()], [get_titles()], [set_footnotes()], [get_footnotes()]
+#'
+#' Other: [build_master()], [build_rstheme()]
 #'
 #' @section Snippets:
 #' \preformatted{
@@ -61,8 +78,8 @@
 #'     summarise_plus(class      = c(var1, var2, ...),
 #'                    values     = c(var1, var2, ...),
 #'                    statistics = c("pct_group", "sum", "sum_wgt", "freq"),
-#'                    formats    = list(var = format., ...),
 #'                    weight     = weight_var,
+#'                    formats    = list(var = format., ...),
 #'                    nesting    = "deepest")
 #'
 #' snippet if.
@@ -72,19 +89,19 @@
 #'
 #' snippet freq
 #'     frequencies(variables = c(var1, var2, ...),
+#'                 weight    = weight_var,
 #'                 formats   = list(var = "format.", ...),
 #'                 titles    = c(),
-#'                 footnotes = c(),
-#'                 weight    = weight_var)
+#'                 footnotes = c())
 #'
 #' snippet cross
 #'     crosstabs(rows       = row_var,
 #'               columns    = col_var,
 #'               statistics = c("sum", "pct_row", "pct_column", "pct_total", "freq"),
+#'               weight    = weight_var,
 #'               formats   = list(var = format., ...),
 #'               titles    = c(),
-#'               footnotes = c(),
-#'               weight    = weight_var)
+#'               footnotes = c())
 #'
 #' snippet any
 #'     any_table(rows        = c("var1 + var2 + ...", "var1"),
@@ -93,13 +110,13 @@
 #'               statistics  = c("sum", "pct_group", "pct_value", "freq"),
 #'               pct_group   = c("var1", "var2"),
 #'               pct_value   = list(new_var = "numerator / denominator"),
+#'               weight    = weight_var,
 #'               formats     = list(var = format., ...),
 #'               titles      = c(),
 #'               footnotes   = c(),
 #'               var_labels  = list("var1" = "My label", ...),
 #'               stat_labels = list("pct" = "%"),
-#'               box         = "",
-#'               weight      = weight_var)
+#'               box         = "")
 #' }
 #'
 #' @keywords internal

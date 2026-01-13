@@ -5,6 +5,7 @@
 \title{Style for 'Excel' Table Outputs}
 \usage{
 excel_output_style(
+  save_path = NULL,
   file = NULL,
   sheet_name = "Table",
   font = "Arial",
@@ -46,6 +47,10 @@ excel_output_style(
   table_indent = 1,
   table_borders = FALSE,
   table_border_color = "000000",
+  as_heatmap = FALSE,
+  heatmap_low_color = "F8696B",
+  heatmap_middle_color = "FFFFFF",
+  heatmap_high_color = "63BE7B",
   box_back_color = "FFFFFF",
   box_font_color = "000000",
   box_font_size = 10,
@@ -68,8 +73,9 @@ excel_output_style(
 )
 }
 \arguments{
-\item{file}{If NULL, opens the output as temporary file. If a filename with path
-is specified, saves the output to the specified path.}
+\item{save_path}{If NULL, opens the output as temporary file. Otherwise specify an output path.}
+
+\item{file}{If NULL, opens the output as temporary file. Otherwise specify a filename with extension.}
 
 \item{sheet_name}{Name of the sheet inside the workbook to which the output shall be written.
 If multiple outputs are produced in one go, the sheet name additionally receives a running number.}
@@ -160,6 +166,14 @@ while scrolling sideways in the document.}
 
 \item{table_border_color}{Borders colors of the inner table cells.}
 
+\item{as_heatmap}{Whether to lay a conditional formatting over the values.}
+
+\item{heatmap_low_color}{The color for lower values in the conditional formatting.}
+
+\item{heatmap_middle_color}{The color for middle values in the conditional formatting.}
+
+\item{heatmap_high_color}{The color for high values in the conditional formatting.}
+
 \item{box_back_color}{Background color of the left box in table header.}
 
 \item{box_font_color}{Font color of the left box in table header.}
@@ -233,6 +247,8 @@ excel_style <- excel_output_style(table_back_color = "")
 \seealso{
 Creating a custom table style: \code{\link[=modify_output_style]{modify_output_style()}},
 \code{\link[=number_format_style]{number_format_style()}}, \code{\link[=modify_number_formats]{modify_number_formats()}}.
+
+Global style options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=set_variable_labels]{set_variable_labels()}}, \code{\link[=set_stat_labels]{set_stat_labels()}}.
 
 Functions that can handle styles: \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}}, \code{\link[=any_table]{any_table()}},
 \code{\link[=export_with_style]{export_with_style()}}

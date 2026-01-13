@@ -10,13 +10,13 @@ frequencies(
   formats = c(),
   by = c(),
   weight = NULL,
-  titles = c(),
-  footnotes = c(),
-  style = excel_output_style(),
-  output = "console",
-  na.rm = FALSE,
-  print = TRUE,
-  monitor = FALSE
+  titles = .qol_options[["titles"]],
+  footnotes = .qol_options[["footnotes"]],
+  style = .qol_options[["excel_style"]],
+  output = .qol_options[["output"]],
+  na.rm = .qol_options[["na.rm"]],
+  print = .qol_options[["print"]],
+  monitor = .qol_options[["monitor"]]
 )
 }
 \arguments{
@@ -34,7 +34,7 @@ frequencies(
 
 \item{footnotes}{Specify one or more table footnotes.}
 
-\item{style}{A list of options can be passed to control the appearance of excel outputs.
+\item{style}{A list of options can be passed to control the appearance of 'Excel' outputs.
 Styles can be created with \code{\link[=excel_output_style]{excel_output_style()}}.}
 
 \item{output}{The following output formats are available: console (default), text,
@@ -77,12 +77,13 @@ my_data <- dummy_data(1000)
 
 # Define titles and footnotes. If you want to add hyperlinks you can do so by
 # adding "link:" followed by the hyperlink to the main text.
-titles <- c("This is title number 1 link: https://cran.r-project.org/",
-            "This is title number 2",
-            "This is title number 3")
-footnotes <- c("This is footnote number 1",
-               "This is footnote number 2",
-               "This is footnote number 3 link: https://cran.r-project.org/")
+set_titles("This is title number 1 link: https://cran.r-project.org/",
+           "This is title number 2",
+           "This is title number 3")
+
+set_footnotes("This is footnote number 1",
+              "This is footnote number 2",
+              "This is footnote number 3 link: https://cran.r-project.org/")
 
 # Output frequencies tables
 my_data |> frequencies(sex)
@@ -94,21 +95,20 @@ my_data |> frequencies("sex")
 my_data |> frequencies(c("age", "education"),
                        weight = "weight")
 
-# Applying formats and titles
+# Applying
 sex. <- discrete_format(
     "Total"  = 1:2,
     "Male"   = 1,
     "Female" = 2)
 
-my_data |> frequencies(sex, formats(sex = sex.),
-                       titles    = titles,
-                       footnotes = footnotes)
+my_data |> frequencies(sex,
+                       formats   = (sex = sex.))
 
 # Split frequencies by expressions of another variable
 my_data |> frequencies(sex, by = education)
 
 # Get a list with two data tables for further usage
-result_list <- my_data |> frequencies(sex, formats(sex = sex.))
+result_list <- my_data |> frequencies(sex, formats = (sex = sex.))
 
 # Output in text file
 my_data |> frequencies(sex, output = "text")
@@ -116,16 +116,39 @@ my_data |> frequencies(sex, output = "text")
 # Output to Excel
 my_data |> frequencies(sex, output = "excel")
 
-# With individual styling
+# Individual styling can also be passed directly
 my_style <- excel_output_style(header_back_color = "0077B6",
                                font              = "Times New Roman")
 
 my_data |> frequencies(sex, output = "excel", style = my_style)
 
+# To save a table as xlsx file you have to set the path and filename in the
+# style element
+# Example files paths
+table_file <- tempfile(fileext = ".xlsx")
+
+# Note: Normally you would directly input the path ("C:/MyPath/") and name ("MyFile.xlsx").
+set_style_options(save_path  = dirname(table_file),
+                  file       = basename(table_file),
+                  sheet_name = "MyTable")
+
+my_data |> frequencies(sex, output = "excel")
+
+# Manual cleanup for example
+unlink(table_file)
+
+# Global options are permanently active until the current R session is closed.
+# There are also functions to reset the values manually.
+reset_style_options()
+reset_qol_options()
+close_file()
+
 }
 \seealso{
 Creating a custom table style: \code{\link[=excel_output_style]{excel_output_style()}}, \code{\link[=modify_output_style]{modify_output_style()}},
 \code{\link[=number_format_style]{number_format_style()}}, \code{\link[=modify_number_formats]{modify_number_formats()}}.
+
+Global style options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=set_variable_labels]{set_variable_labels()}}, \code{\link[=set_stat_labels]{set_stat_labels()}}.
 
 Creating formats: \code{\link[=discrete_format]{discrete_format()}} and \code{\link[=interval_format]{interval_format()}}.
 
@@ -134,5 +157,5 @@ Functions that can handle formats and styles: \code{\link[=crosstabs]{crosstabs(
 Additional functions that can handle styles: \code{\link[=export_with_style]{export_with_style()}}
 
 Additional functions that can handle formats: \code{\link[=summarise_plus]{summarise_plus()}}, \code{\link[=recode]{recode()}},
-\code{\link[=recode_multi]{recode_multi()}}
+\code{\link[=recode_multi]{recode_multi()}}, \code{\link[=transpose_plus]{transpose_plus()}}, \code{\link[=sort_plus]{sort_plus()}}
 }

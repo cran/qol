@@ -16,18 +16,17 @@ any_table(
   by = c(),
   weight = NULL,
   order_by = "stats",
-  titles = c(),
-  footnotes = c(),
-  var_labels = list(),
-  stat_labels = list(),
+  titles = .qol_options[["titles"]],
+  footnotes = .qol_options[["footnotes"]],
+  var_labels = .qol_options[["var_labels"]],
+  stat_labels = .qol_options[["stat_labels"]],
   box = "",
   workbook = NULL,
-  style = excel_output_style(),
-  output = "excel",
-  pre_summed = FALSE,
-  na.rm = FALSE,
-  print = TRUE,
-  monitor = FALSE
+  style = .qol_options[["excel_style"]],
+  output = .qol_options[["output"]],
+  na.rm = .qol_options[["na.rm"]],
+  print = .qol_options[["print"]],
+  monitor = .qol_options[["monitor"]]
 )
 }
 \arguments{
@@ -99,15 +98,10 @@ which statistic instead of the statistic name.}
 \item{workbook}{Insert a previously created workbook to expand the sheets instead of
 creating a new file.}
 
-\item{style}{A list of options can be passed to control the appearance of excel outputs.
+\item{style}{A list of options can be passed to control the appearance of 'Excel' outputs.
 Styles can be created with \code{\link[=excel_output_style]{excel_output_style()}}.}
 
 \item{output}{The following output formats are available: excel and excel_nostyle.}
-
-\item{pre_summed}{FALSE by default. If TRUE this function works with pre summarised data. This can be
-used, if not all the needed results can be calculated by \code{\link[=any_table]{any_table()}} and need to be prepared in
-advance. Enabling you to still make use of the styled tabulation. For this to work, the values have to
-carry the statistic extension (e.g. "_sum", "_pct") in the variable name.}
 
 \item{na.rm}{FALSE by default. If TRUE removes all NA values from the variables.}
 
@@ -173,17 +167,39 @@ education. <- discrete_format(
     "middle education" = "middle",
     "high education"   = "high")
 
+state. <- discrete_format(
+    "Germany"                       = 1:16,
+    "Schleswig-Holstein"            = 1,
+    "Hamburg"                       = 2,
+    "Lower Saxony"                  = 3,
+    "Bremen"                        = 4,
+    "North Rhine-Westphalia"        = 5,
+    "Hesse"                         = 6,
+    "Rhineland-Palatinate"          = 7,
+    "Baden-Württemberg"             = 8,
+    "Bavaria"                       = 9,
+    "Saarland"                      = 10,
+    "West"                          = 1:10,
+    "Berlin"                        = 11,
+    "Brandenburg"                   = 12,
+    "Mecklenburg-Western Pomerania" = 13,
+    "Saxony"                        = 14,
+    "Saxony-Anhalt"                 = 15,
+    "Thuringia"                     = 16,
+    "East"                          = 11:16)
+
 # Define style
-my_style <- excel_output_style(column_widths = c(2, 15, 15, 15, 9))
+set_style_options(column_widths = c(2, 15, 15, 15, 9))
 
 # Define titles and footnotes. If you want to add hyperlinks you can do so by
 # adding "link:" followed by the hyperlink to the main text.
-titles <- c("This is title number 1 link: https://cran.r-project.org/",
-            "This is title number 2",
-            "This is title number 3")
-footnotes <- c("This is footnote number 1",
-               "This is footnote number 2",
-               "This is footnote number 3 link: https://cran.r-project.org/")
+set_titles("This is title number 1 link: https://cran.r-project.org/",
+           "This is title number 2",
+           "This is title number 3")
+
+set_footnotes("This is footnote number 1",
+              "This is footnote number 2",
+              "This is footnote number 3 link: https://cran.r-project.org/")
 
 # Output complex tables with different percentages
 my_data |> any_table(rows       = c("sex + age", "sex", "age"),
@@ -193,7 +209,6 @@ my_data |> any_table(rows       = c("sex + age", "sex", "age"),
                      pct_group  = c("sex", "age", "education", "year"),
                      formats    = list(sex = sex., age = age.,
                                        education = education.),
-                     style      = my_style,
                      na.rm      = TRUE)
 
 # If you want to get a clearer vision of what the result table looks like, in terms
@@ -208,7 +223,6 @@ my_data |> any_table(columns = c(            "year", "education + year"),
                      pct_group  = c("sex", "age", "education", "year"),
                      formats    = list(sex = sex., age = age.,
                                        education = education.),
-                     style      = my_style,
                      na.rm      = TRUE)
 
 # Percentages based on value variables instead of categories
@@ -219,11 +233,11 @@ my_data |> any_table(rows       = c("age + year"),
                      pct_value  = list(rate = "probability / person"),
                      weight     = weight,
                      formats    = list(sex = sex., age = age.),
-                     style      = my_style,
                      na.rm      = TRUE)
 
-# Customize the visual appearance by adding titles, footnotes and variable
-# and statistic labels.
+# Customize the visual appearance by adding variable and statistic labels. Both
+# can also be set as a global option, if labels should be reused over multiple
+# tables.
 # Note: You don't have to describe every element. Sometimes a table can be more
 # readable with less text. To completely remove a variable label just put in an
 # empty text "" as label.
@@ -233,17 +247,14 @@ my_data |> any_table(rows        = c("age + year"),
                      statistics  = c("sum", "pct_group"),
                      order_by    = "interleaved",
                      formats     = list(sex = sex., age = age.),
-                     titles      = titles,
-                     footnotes   = footnotes,
                      var_labels  = list(age = "Age categories",
-                                       sex = "", weight = ""),
+                                        sex = "", weight = ""),
                      stat_labels = list(pct = "\%"),
-                     style       = my_style,
                      na.rm       = TRUE)
 
-# With individual styling
-my_style <- my_style |> modify_output_style(header_back_color = "0077B6",
-                                            font              = "Times New Roman")
+# Individual styling can also be passed directly
+my_style <- excel_output_style(header_back_color = "0077B6",
+                               font              = "Times New Roman")
 
 my_data |> any_table(rows       = c("age + year"),
                      columns    = c("sex"),
@@ -264,7 +275,6 @@ result_list <- my_data |>
                      values     = weight,
                      statistics = c("sum"),
                      formats    = list(sex = sex., age = age.),
-                     style      = my_style,
                      na.rm      = TRUE,
                      print      = FALSE)
 
@@ -276,7 +286,6 @@ my_data |> any_table(workbook   = result_list[["workbook"]],
                      values     = weight,
                      statistics = c("pct_group"),
                      formats    = list(education = education.),
-                     style      = my_style,
                      na.rm      = TRUE)
 
 # Output multiple complex tables by expressions of another variable.
@@ -293,15 +302,38 @@ my_data |> any_table(rows       = c("sex", "age"),
                      pct_group  = c("education"),
                      formats    = list(sex = sex., age = age., state = state.,
                                        education = education.),
-                     titles     = titles,
-                     footnotes  = footnotes,
-                     style      = my_style,
                      na.rm      = TRUE)
+
+# To save a table as xlsx file you have to set the path and filename in the
+# style element
+# Example files paths
+table_file <- tempfile(fileext = ".xlsx")
+
+# Note: Normally you would directly input the path ("C:/MyPath/") and name ("MyFile.xlsx").
+set_style_options(save_path  = dirname(table_file),
+                  file       = basename(table_file),
+                  sheet_name = "MyTable")
+
+my_data |> any_table(rows       = "sex",
+                     columns    = "year",
+                     values     = weight,
+                     formats    = list(sex = sex.))
+
+# Manual cleanup for example
+unlink(table_file)
+
+# Global options are permanently active until the current R session is closed.
+# There are also functions to reset the values manually.
+reset_style_options()
+reset_qol_options()
+close_file()
 
 }
 \seealso{
 Creating a custom table style: \code{\link[=excel_output_style]{excel_output_style()}}, \code{\link[=modify_output_style]{modify_output_style()}},
 \code{\link[=number_format_style]{number_format_style()}}, \code{\link[=modify_number_formats]{modify_number_formats()}}.
+
+Global style options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=set_variable_labels]{set_variable_labels()}}, \code{\link[=set_stat_labels]{set_stat_labels()}}.
 
 Creating formats: \code{\link[=discrete_format]{discrete_format()}} and \code{\link[=interval_format]{interval_format()}}.
 
@@ -310,5 +342,5 @@ Functions that can handle formats and styles: \code{\link[=frequencies]{frequenc
 Additional functions that can handle styles: \code{\link[=export_with_style]{export_with_style()}}
 
 Additional functions that can handle formats: \code{\link[=summarise_plus]{summarise_plus()}}, \code{\link[=recode]{recode()}},
-\code{\link[=recode_multi]{recode_multi()}}
+\code{\link[=recode_multi]{recode_multi()}}, \code{\link[=transpose_plus]{transpose_plus()}}, \code{\link[=sort_plus]{sort_plus()}}
 }

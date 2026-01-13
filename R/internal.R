@@ -1,29 +1,3 @@
-#' Check If Variable Length Throws an Error
-#'
-#' @description
-#' This try catch check is used for error handling in some functions. It enables a
-#' function to react to a none existing variable in a way, that let's the code flow
-#' instead of stopping with an error.
-#'
-#' @param variable The variable whose length should be checked.
-#'
-#' @return
-#' Returns the result of a try catch check.
-#'
-#' @noRd
-is_error <- function(variable) {
-    # Check if the variable can be evaluated or if it throws an error
-    result <- tryCatch({
-        length(variable) == 1
-        FALSE
-    }, error = function(e){
-        TRUE
-    })
-
-    result
-}
-
-
 #' Reorder Variable Combination Alphabetically
 #'
 #' @description
@@ -96,7 +70,7 @@ is_multilabel <- function(format_list, variable){
                                               by.x = c("from", "to"),
                                               by.y = c("from", "to"))
 
-        if (nrow(format_check) > nrow(format)){
+        if (collapse::fnrow(format_check) > collapse::fnrow(format)){
             return(TRUE)
         }
     }
@@ -112,7 +86,7 @@ is_multilabel <- function(format_list, variable){
 #' In [any_table()] the table columns can be ordered in different ways. Interleaved
 #' means that columns of different statistics appear alternated in the table.
 #'
-#' @param data_frame The data frame which contains the colums to be ordered.
+#' @param data_frame The data frame which contains the columns to be ordered.
 #' @param patterns The statistics in the order they should be interleaved.
 #'
 #' @return
@@ -137,4 +111,45 @@ order_interleaved <- function(data_frame, patterns) {
 
     # Order columns
     data_frame |> data.table::setcolorder(interleaved, after = ncol(data_frame))
+}
+
+
+#' Check If Data Frame Is Already Summarised
+#'
+#' @description
+#' [any_table()] can be used to tabulate individual data but also pre summarised
+#' data. This check is used to determine which route to use.
+#'
+#' @param data_frame The data frame which contains the columns to be checked.
+#' @param group_vars The grouping variables which potentially form unique combinations.
+#'
+#' @return
+#' Returns TRUE or FALSE depending on the result.
+#'
+#' @noRd
+is_pre_summed <- function(data_frame, group_vars){
+    !collapse::any_duplicated(data_frame[group_vars])
+}
+
+
+#' Unlist Variables
+#'
+#' @description
+#' Unlists variables concatenated by + signs. This is used to get the single variables
+#' in e.g. [any_table()], where rows and columns are passed like c("sex", "sex + age").
+#'
+#' @param var_names A character vector of variable names.
+#'
+#' @return
+#' Character vector.
+#'
+#' @noRd
+unlist_variables <- function(var_names){
+    # This errors if a value without quotation marks is passed. In this case return NULL
+    # so that the function using this check can abort.
+    tryCatch({
+        collapse::funique(trimws(unlist(strsplit(var_names, "\\+"))))
+    }, error = function(e) {
+        NULL
+    })
 }

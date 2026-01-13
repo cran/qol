@@ -435,40 +435,6 @@ test_that("Weighted vs. unweighted output", {
 })
 
 
-test_that("Entering none existing variable as weight leads to unweighted results", {
-    result_df1 <- suppressMessages(dummy_df |>
-            summarise_plus(class  = year,
-                           values = income))
-
-    expect_message(result_df2 <- dummy_df |>
-            summarise_plus(class  = year,
-                           values = income,
-                           weight = abc), " ! WARNING: Provided weight variable is not part of the data frame")
-
-    expect_true(all(c("year", "income_sum", "income_freq") %in% names(result_df1)))
-    expect_true(all(c("year", "income_sum", "income_freq") %in% names(result_df2)))
-
-    expect_identical(result_df1, result_df2)
-})
-
-
-test_that("Entering none numeric variable as weight leads to unweighted results", {
-    result_df1 <- suppressMessages(dummy_df |>
-            summarise_plus(class  = year,
-                           values = income))
-
-    expect_message(result_df2 <- dummy_df |>
-            summarise_plus(class  = year,
-                           values = income,
-                           weight = education), " ! WARNING: Provided weight variable is not numeric")
-
-    expect_true(all(c("year", "income_sum", "income_freq") %in% names(result_df1)))
-    expect_true(all(c("year", "income_sum", "income_freq") %in% names(result_df2)))
-
-    expect_identical(result_df1, result_df2)
-})
-
-
 test_that("Specifying many statistics doesn't break function", {
     result_df <- dummy_df |>
         collapse::fsubset(!is.na(income) & !is.na(probability)) |>
@@ -502,83 +468,6 @@ test_that("Specifying only one statistic puts out variable names without extensi
 })
 
 
-test_that("Percentiles won't be calculated if value variable has NA values", {
-    expect_message(result_df <- dummy_df |>
-        summarise_plus(class      = c(year, sex),
-                       values     = c(income, probability),
-                       statistics = c("p1", "p99"),
-                       weight     = weight), " ! WARNING: To calculate percentiles there may be no NAs in the value variables")
-
-    expect_equal(ncol(result_df), 5)
-})
-
-
-test_that("Percentiles above 100 not allowed", {
-    expect_message(result_df <- dummy_df |>
-                       summarise_plus(class      = c(year, sex),
-                                      values     = c(income, probability),
-                                      statistics = c("p101"),
-                                      weight     = weight), " ! WARNING: Percentiles are only possible from p0 to p100")
-
-    expect_equal(ncol(result_df), 5)
-})
-
-
-test_that("None existent class variables will be omitted", {
-    expect_message(result_df <- dummy_df |>
-        summarise_plus(class      = c(year, sex, test),
-                       values     = c(income, probability),
-                       statistics = "sum",
-                       weight     = weight), "This variable will be omitted during computation")
-
-    expect_equal(ncol(result_df), 7)
-})
-
-
-test_that("None existent analysis variable will be omitted", {
-    expect_message(result_df <- dummy_df |>
-       summarise_plus(class      = c(year, sex),
-                      values     = c(income, probability, test),
-                      statistics = "sum",
-                      weight     = weight), "This variable will be omitted during computation")
-
-    expect_equal(ncol(result_df), 7)
-})
-
-
-test_that("Double class variables will be omitted", {
-    expect_message(result_df <- dummy_df |>
-       summarise_plus(class      = c(year, sex, sex),
-                      values     = c(income, probability),
-                      statistics = "sum",
-                      weight     = weight), " ! WARNING: Some grouping variables are provided more than once")
-
-    expect_equal(ncol(result_df), 7)
-})
-
-
-test_that("Double analysis variables will be omitted", {
-    expect_message(result_df <- dummy_df |>
-       summarise_plus(class      = c(year, sex),
-                      values     = c(income, probability, income),
-                      statistics = "sum",
-                      weight     = weight), " ! WARNING: Some analysis variables are provided more than once")
-
-    expect_equal(ncol(result_df), 7)
-})
-
-
-test_that("Analysis variable will be omitted if also passed as class variable", {
-    expect_message(result_df <- dummy_df |>
-       summarise_plus(class      = c(year, sex, age),
-                      values     = c(age, probability),
-                      statistics = "sum",
-                      weight     = weight), "This variable will be omitted as analysis variable during computation")
-
-    expect_equal(ncol(result_df), 7)
-})
-
-
 test_that("None existent statistics will be omitted", {
     result_df <- dummy_df |>
         summarise_plus(class      = c(year, sex),
@@ -597,20 +486,6 @@ test_that("Merging variables back to original data frame creates new column", {
                        statistics = "sum",
                        weight     = weight,
                        merge_back = TRUE)
-
-    expect_equal(ncol(result_df), ncol(dummy_df) + 1)
-    expect_equal(nrow(result_df), nrow(dummy_df))
-})
-
-
-test_that("Merging variables back works if wrong nesting option ist provided", {
-    expect_message(result_df <- dummy_df |>
-        summarise_plus(class      = c(year, sex),
-                       values     = c(income),
-                       statistics = "sum",
-                       weight     = weight,
-                       nesting    = "all",
-                       merge_back = TRUE), " ! WARNING: Merging variables back only works with nesting = 'deepest'")
 
     expect_equal(ncol(result_df), ncol(dummy_df) + 1)
     expect_equal(nrow(result_df), nrow(dummy_df))
@@ -645,12 +520,6 @@ test_that("Drop auto generated variables after summarise", {
     expect_equal(ncol(result_df), 2)
 
     expect_true(!all(c("TYPE", "TYPE_NR", "DEPTH") %in% names(result_df)))
-})
-
-
-test_that("Drop auto generated variables will be omitted if not in data frame", {
-    expect_message(result_df <- dummy_df |>
-        drop_type_vars(), " ! WARNING: The provided variable to drop")
 })
 
 
@@ -713,35 +582,26 @@ test_that("Summarise possible with no class variables provided", {
     expect_equal(nrow(result_df), 1)
 })
 
-
-test_that("Summarise errors when no analysis variable is provided", {
-    expect_message(result_df <- dummy_df |>
-        summarise_plus(statistics = "sum"), " X ERROR: No values provided")
-
-    expect_equal(result_df, NULL)
-})
-
 ###############################################################################
 # Format checks
 ###############################################################################
 
 test_that("Apply single discrete labels", {
-    # NOTE: The user doesn't pass the formats in like this but it's the only way
-    #       to test the functionality because test_that otherwise has no access
-    #       to the formats if declared outside the function to test.
+    sex. <- suppressMessages(discrete_format(
+        "Male"   = 1,
+        "Female" = 2))
+    age. <- suppressMessages(discrete_format(
+        "under 18"       = 0:17,
+        "18 to under 25" = 18:24,
+        "25 to under 55" = 25:54,
+        "55 to under 65" = 55:64,
+        "65 and older"   = 65:100))
+
     format_df <- dummy_df |>
         summarise_plus(class      = c(sex, age),
                        values     = income,
                        statistics = "sum",
-                       formats    = list(sex = suppressMessages(discrete_format(
-                                           "Male"   = 1,
-                                           "Female" = 2)),
-                                         age = suppressMessages(discrete_format(
-                                           "under 18"       = 0:17,
-                                           "18 to under 25" = 18:24,
-                                           "25 to under 55" = 25:54,
-                                           "55 to under 65" = 55:64,
-                                           "65 and older"   = 65:100))),
+                       formats    = list(sex = sex., age = age.),
                        weight     = weight,
                        nesting    = "deepest")
 
@@ -764,22 +624,23 @@ test_that("Apply single discrete labels", {
 
 
 test_that("Apply discrete multilabels", {
-    # See comments above
+    sex. <- suppressMessages(discrete_format(
+        "Total"  = 1:2,
+        "Male"   = 1,
+        "Female" = 2))
+    age. <- suppressMessages(discrete_format(
+        "Total"          = 0:100,
+        "under 18"       = 0:17,
+        "18 to under 25" = 18:24,
+        "25 to under 55" = 25:54,
+        "55 to under 65" = 55:64,
+        "65 and older"   = 65:100))
+
     format_df <- dummy_df |>
         summarise_plus(class      = c(sex, age),
                        values     = weight,
                        statistics = "sum",
-                       formats    = list(sex = suppressMessages(discrete_format(
-                                           "Total"  = 1:2,
-                                           "Male"   = 1,
-                                           "Female" = 2)),
-                           age = suppressMessages(discrete_format(
-                                           "Total"          = 0:100,
-                                           "under 18"       = 0:17,
-                                           "18 to under 25" = 18:24,
-                                           "25 to under 55" = 25:54,
-                                           "55 to under 65" = 55:64,
-                                           "65 and older"   = 65:100))),
+                       formats    = list(sex = sex., age = age.),
                        nesting    = "deepest",
                        na.rm      = TRUE) |>
         remove_stat_extension("sum")
@@ -805,16 +666,17 @@ test_that("Apply discrete multilabels", {
 
 
 test_that("Apply single interval label", {
-    # See comments above
+    income. <- suppressMessages(interval_format(
+        "below 500"          = 0:499,
+        "500 to under 1000"  = 500:999,
+        "1000 to under 2000" = 1000:1999,
+        "2000 and more"      = 2000:99999))
+
     format_df <- dummy_df |>
         summarise_plus(class      = c(income),
                        values     = weight,
                        statistics = "sum",
-                       formats    = list(income = suppressMessages(interval_format(
-                                           "below 500"          = 0:499,
-                                           "500 to under 1000"  = 500:999,
-                                           "1000 to under 2000" = 1000:1999,
-                                           "2000 and more"      = 2000:99999))),
+                       formats    = list(income = income.),
                        nesting    = "deepest") |>
         remove_stat_extension("sum")
 
@@ -828,17 +690,18 @@ test_that("Apply single interval label", {
 
 
 test_that("Apply interval multilabel", {
-    # See comments above
+    income. <- suppressMessages(interval_format(
+        "Total"              = 0:99999,
+        "below 500"          = 0:499,
+        "500 to under 1000"  = 500:999,
+        "1000 to under 2000" = 1000:1999,
+        "2000 and more"      = 2000:99999))
+
     format_df <- dummy_df |>
         summarise_plus(class      = c(income),
                        values     = weight,
                        statistics = "sum",
-                       formats    = list(income = suppressMessages(interval_format(
-                           "Total"              = 0:99999,
-                           "below 500"          = 0:499,
-                           "500 to under 1000"  = 500:999,
-                           "1000 to under 2000" = 1000:1999,
-                           "2000 and more"      = 2000:99999))),
+                       formats    = list(income = income.),
                        nesting    = "deepest",
                        na.rm      = TRUE) |>
         remove_stat_extension("sum")
@@ -853,4 +716,171 @@ test_that("Apply interval multilabel", {
                       "500 to under 1000",
                       "1000 to under 2000",
                       "2000 and more") %in% format_df[["income"]]))
+})
+
+###############################################################################
+# Warning checks
+###############################################################################
+
+
+test_that("Entering none existing variable as weight leads to unweighted results", {
+    result_df1 <- suppressMessages(dummy_df |>
+                               summarise_plus(class  = year,
+                                              values = income))
+
+    expect_message(result_df2 <- dummy_df |>
+               summarise_plus(class  = year,
+                              values = income,
+                              weight = abc), " ! WARNING: Provided weight variable is not part of the data frame")
+
+    expect_true(all(c("year", "income_sum", "income_freq") %in% names(result_df1)))
+    expect_true(all(c("year", "income_sum", "income_freq") %in% names(result_df2)))
+
+    expect_identical(result_df1, result_df2)
+})
+
+
+test_that("Entering none numeric variable as weight leads to unweighted results", {
+    result_df1 <- suppressMessages(dummy_df |>
+                               summarise_plus(class  = year,
+                                              values = income))
+
+    expect_message(result_df2 <- dummy_df |>
+               summarise_plus(class  = year,
+                              values = income,
+                              weight = education), " ! WARNING: Provided weight variable is not numeric")
+
+    expect_true(all(c("year", "income_sum", "income_freq") %in% names(result_df1)))
+    expect_true(all(c("year", "income_sum", "income_freq") %in% names(result_df2)))
+
+    expect_identical(result_df1, result_df2)
+})
+
+
+test_that("Percentiles won't be calculated if value variable has NA values", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = c(year, sex),
+                              values     = c(income, probability),
+                              statistics = c("p1", "p99"),
+                              weight     = weight), " ! WARNING: To calculate percentiles there may be no NAs in the value variables")
+
+    expect_equal(ncol(result_df), 5)
+})
+
+
+test_that("Percentiles above 100 not allowed", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = c(year, sex),
+                              values     = c(income, probability),
+                              statistics = c("p101"),
+                              weight     = weight), " ! WARNING: Percentiles are only possible from p0 to p100")
+
+    expect_equal(ncol(result_df), 7)
+})
+
+
+test_that("None existent class variables will be omitted", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = c(year, sex, test),
+                              values     = c(income, probability),
+                              statistics = "sum",
+                              weight     = weight), "This variable will be omitted during computation")
+
+    expect_equal(ncol(result_df), 7)
+})
+
+
+test_that("None existent analysis variable will be omitted", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = c(year, sex),
+                              values     = c(income, probability, test),
+                              statistics = "sum",
+                              weight     = weight), "This variable will be omitted during computation")
+
+    expect_equal(ncol(result_df), 7)
+})
+
+
+test_that("Double class variables will be omitted", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = c(year, sex, sex),
+                              values     = c(income, probability),
+                              statistics = "sum",
+                              weight     = weight), " ! WARNING: Some <class> variables are provided more than once")
+
+    expect_equal(ncol(result_df), 7)
+})
+
+
+test_that("Double analysis variables will be omitted", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = c(year, sex),
+                              values     = c(income, probability, income),
+                              statistics = "sum",
+                              weight     = weight), " ! WARNING: Some <values> variables are provided more than once")
+
+    expect_equal(ncol(result_df), 7)
+})
+
+
+test_that("Analysis variable will be omitted if also passed as class variable", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = c(year, sex, age),
+                              values     = c(age, probability),
+                              statistics = "sum",
+                              weight     = weight), "This variable will be omitted as <values> variable during computation")
+
+    expect_equal(ncol(result_df), 7)
+})
+
+
+test_that("Merging variables back works if wrong nesting option ist provided", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = c(year, sex),
+                              values     = c(income),
+                              statistics = "sum",
+                              weight     = weight,
+                              nesting    = "all",
+                              merge_back = TRUE), " ! WARNING: Merging variables back only works with nesting = 'deepest'")
+
+    expect_equal(ncol(result_df), ncol(dummy_df) + 1)
+    expect_equal(nrow(result_df), nrow(dummy_df))
+})
+
+
+test_that("Drop auto generated variables will be omitted if not in data frame", {
+    expect_message(result_df <- dummy_df |>
+               drop_type_vars(), " ! WARNING: The provided variable to drop")
+})
+
+
+test_that("Invalid statistic will be omitted", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = year,
+                              values     = income,
+                              statistics = c("test", "sum")), " ! WARNING: <Statistic> 'test' is invalid and will be omitted.")
+
+    expect_equal(ncol(result_df), 5)
+})
+
+
+test_that("'Invalid statistic will be omitted 'sum' will be chosen as statistic if no valid one is provided", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(class      = year,
+                              values     = income,
+                              statistics = "test"), " ! WARNING: No valid <statistic> selected. 'sum' will be used.")
+
+    expect_equal(ncol(result_df), 5)
+})
+
+###############################################################################
+# Abort checks
+###############################################################################
+
+
+test_that("Summarise errors when no analysis variable is provided", {
+    expect_message(result_df <- dummy_df |>
+               summarise_plus(statistics = "sum"), " X ERROR: No <values> provided")
+
+    expect_equal(result_df, NULL)
 })

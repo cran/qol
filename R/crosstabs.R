@@ -7,6 +7,7 @@
 #' @param data_frame A data frame in which are the variables to tabulate.
 #' @param rows The variable that appears in the table rows.
 #' @param columns The variable that appears in the table columns.
+#' @param show_total TRUE by default. Whether to print row and column totals or not.
 #' @param statistics The user requested statistics.Available functions:
 #' - "sum"        -> Weighted and unweighted sum
 #' - "freq"       -> Unweighted frequency
@@ -18,7 +19,7 @@
 #' @param weight Put in a weight variable to compute weighted results.
 #' @param titles Specify one or more table titles.
 #' @param footnotes Specify one or more table footnotes.
-#' @param style A list of options can be passed to control the appearance of excel outputs.
+#' @param style A list of options can be passed to control the appearance of 'Excel' outputs.
 #' Styles can be created with [excel_output_style()].
 #' @param output The following output formats are available: console (default), text,
 #' excel and excel_nostyle.
@@ -49,6 +50,8 @@
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [number_format_style()], [modify_number_formats()].
 #'
+#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#'
 #' Creating formats: [discrete_format()] and [interval_format()].
 #'
 #' Functions that can handle formats and styles: [frequencies()], [any_table()].
@@ -56,7 +59,7 @@
 #' Additional functions that can handle styles: [export_with_style()]
 #'
 #' Additional functions that can handle formats: [summarise_plus()], [recode()],
-#' [recode_multi()]
+#' [recode_multi()], [transpose_plus()], [sort_plus()]
 #'
 #' @examples
 #' # Example data frame
@@ -64,12 +67,13 @@
 #'
 #' # Define titles and footnotes. If you want to add hyperlinks you can do so by
 #' # adding "link:" followed by the hyperlink to the main text.
-#' titles <- c("This is title number 1 link: https://cran.r-project.org/",
-#'             "This is title number 2",
-#'             "This is title number 3")
-#' footnotes <- c("This is footnote number 1",
-#'                "This is footnote number 2",
-#'                "This is footnote number 3 link: https://cran.r-project.org/")
+#' set_titles("This is title number 1 link: https://cran.r-project.org/",
+#'            "This is title number 2",
+#'            "This is title number 3")
+#'
+#' set_footnotes("This is footnote number 1",
+#'               "This is footnote number 2",
+#'               "This is footnote number 3 link: https://cran.r-project.org/")
 #'
 #' # Output cross tables
 #' my_data |> crosstabs(age, sex)
@@ -81,7 +85,7 @@
 #' my_data |> crosstabs("age", "sex",
 #'                      weight = "weight")
 #'
-#' # Applying formats and titles
+#' # Applying formats
 #' age. <- discrete_format(
 #'     "Total"          = 0:100,
 #'     "under 18"       = 0:17,
@@ -96,9 +100,7 @@
 #'     "Female" = 2)
 #'
 #' my_data |> crosstabs(age, sex,
-#'                      formats   = list(age = age., sex = sex.),
-#'                      titles    = titles,
-#'                      footnotes = footnotes)
+#'                      formats   = list(age = age., sex = sex.))
 #'
 #' # Split cross table by expressions of another variable
 #' my_data |> crosstabs(age, sex, by = education)
@@ -117,217 +119,155 @@
 #' # Output to Excel
 #' my_data |> crosstabs(age, sex, output = "excel")
 #'
-#' # With individual styling
+#' # Individual styling can also be passed directly
 #' my_style <- excel_output_style(header_back_color = "0077B6",
 #'                                font              = "Times New Roman")
 #'
 #' my_data |> crosstabs(age, sex, output = "excel", style = my_style)
 #'
+#' # To save a table as xlsx file you have to set the path and filename in the
+#' # style element
+#' # Example files paths
+#' table_file <- tempfile(fileext = ".xlsx")
+#'
+#' # Note: Normally you would directly input the path ("C:/MyPath/") and name ("MyFile.xlsx").
+#' set_style_options(save_path  = dirname(table_file),
+#'                   file       = basename(table_file),
+#'                   sheet_name = "MyTable")
+#'
+#' my_data |> crosstabs(age, sex, output = "excel")
+#'
+#' # Manual cleanup for example
+#' unlink(table_file)
+#'
+#' # Global options are permanently active until the current R session is closed.
+#' # There are also functions to reset the values manually.
+#' reset_style_options()
+#' reset_qol_options()
+#' close_file()
+#'
 #' @export
 crosstabs <- function(data_frame,
                       rows,
                       columns,
+                      show_total = TRUE,
                       statistics = c("sum"),
                       formats    = c(),
                       by         = c(),
                       weight     = NULL,
-                      titles     = c(),
-                      footnotes  = c(),
-                      style      = excel_output_style(),
-                      output     = "console",
-                      na.rm      = FALSE,
-                      print      = TRUE,
-                      monitor    = FALSE){
+                      titles     = .qol_options[["titles"]],
+                      footnotes  = .qol_options[["footnotes"]],
+                      style      = .qol_options[["excel_style"]],
+                      output     = .qol_options[["output"]],
+                      na.rm      = .qol_options[["na.rm"]],
+                      print      = .qol_options[["print"]],
+                      monitor    = .qol_options[["monitor"]]){
 
     # Measure the time
     start_time <- Sys.time()
 
+    #-------------------------------------------------------------------------#
     monitor_df <- NULL |> monitor_start("Error handling", "Preparation")
+    #-------------------------------------------------------------------------#
+
+    ###########################################################################
+    # Early evaluations
+    ###########################################################################
 
     # First convert data frame to data table
     if (!data.table::is.data.table(data_frame)){
         data_frame <- data.table::as.data.table(data_frame)
     }
 
-    # Evaluate formats early, otherwise apply formats can't evaluate them in unit
-    # test situation.
-    formats_list <- as.list(substitute(formats))[-1]
-
-    formats <- stats::setNames(
-        lapply(formats_list, function(expression){
-            # Catch expression if passed as string
-            if (is.character(expression)) {
-                tryCatch(get(expression, envir = parent.frame()),
-                         error = function(e) NULL)
-            }
-            # Catch expression if passed as symbol
-            else{
-                tryCatch(eval(expression, envir = parent.frame()),
-                         error = function(e) NULL)
-            }
-        }),
-        names(formats_list))
-
-    # Look up variable names in format data frame to check whether there is an
-    # interval or discrete format
-    flag_interval <- FALSE
-
-    for (current_var in names(formats)){
-        format_df          <- formats[[current_var]]
-        interval_variables <- c("from", "to")
-        actual_variables   <- names(format_df)[1:2]
-
-        if (identical(interval_variables, actual_variables)){
-            flag_interval <- TRUE
-            break
-        }
+    # Evaluate formats early
+    if (!is_list_of_dfs(formats)){
+        formats_list <- as.list(substitute(formats))[-1]
+        formats      <- evaluate_formats(formats_list)
     }
 
     ###########################################################################
     # Error handling
     ###########################################################################
 
-    # Convert to character vectors
-    rows_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(rows))))
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Row variables
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    if (substr(rows_temp, 1, 2) == "c("){
-        rows <- as.character(substitute(rows))
-    }
-    else if (!is_error(rows)){
-        # Do nothing. In this case variables already contains the substituted variable names
-        # while rows_temp is evaluated to the symbol passed into the function.
-    }
-    else{
-        rows <- rows_temp
-    }
+    rows <- get_origin_as_char(rows, substitute(rows))
 
-    # Remove extra first character created with substitution
-    rows <- rows[rows != "c"]
+    # Make sure that the variables provided are part of the data frame.
+    rows <- data_frame |> part_of_df(rows)
 
-    provided_rows <- rows
-    invalid_rows  <- rows[!rows %in% names(data_frame)]
-    rows          <- rows[rows %in% names(data_frame)]
-
-    if (length(invalid_rows) > 0){
-        message(" ! WARNING: The provided row variable '", paste(invalid_rows, collapse = ", "), "' is not part of\n",
-                "            the data frame. This variable will be omitted during computation.")
-    }
-
-    if (length(rows) == 0){
-        message(" X ERROR: No valid row variable provided. Crosstabs will be aborted.")
-        return(invisible(NULL))
+    if (length(rows) <= 1){
+        if (length(rows) == 0 || rows == ""){
+            message(" X ERROR: No valid <rows> variable provided. Crosstabs will be aborted.")
+            return(invisible(NULL))
+        }
     }
 
     if (length(rows) > 1){
-        message(" X ERROR: Only one variable for rows allowed. Crosstabs will be aborted.")
+        message(" X ERROR: Only one variable for <rows> allowed. Crosstabs will be aborted.")
         return(invisible(NULL))
     }
 
-    # Convert to character vectors
-    columns_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(columns))))
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Column variables
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    if (substr(columns_temp, 1, 2) == "c("){
-        columns <- as.character(substitute(columns))
-    }
-    else if (!is_error(columns)){
-        # Do nothing. In this case variables already contains the substituted variable names
-        # while columns_temp is evaluated to the symbol passed into the function.
-    }
-    else{
-        columns <- columns_temp
-    }
+    columns <- get_origin_as_char(columns, substitute(columns))
 
-    # Remove extra first character created with substitution
-    columns <- columns[columns != "c"]
+    # Make sure that the variables provided are part of the data frame.
+    columns <- data_frame |> part_of_df(columns)
 
-    provided_columns <- columns
-    invalid_columns  <- columns[!columns %in% names(data_frame)]
-    columns          <- columns[columns %in% names(data_frame)]
+    # Make sure there is no column variable that is also a row variable.
+    columns <- resolve_intersection(columns, rows, check_only = TRUE)
 
-    if (length(invalid_columns) > 0){
-        message(" ! WARNING: The provided column variable '", paste(invalid_columns, collapse = ", "), "' is not part of\n",
-                "            the data frame. This variable will be omitted during computation.")
-    }
-
-    if (length(columns) == 0){
-        message(" X ERROR: No valid column variable provided. Crosstabs will be aborted.")
+    if (is.list(columns)){
+        message(" X ERROR: The provided <columns> variable '", paste(columns[[1]], collapse = ", "), "' is also part of\n",
+                "          the <rows> variables. Crosstabs will be aborted.")
         return(invisible(NULL))
+    }
+
+    if (length(columns) <= 1){
+        if (length(columns) == 0 || columns == ""){
+            message(" X ERROR: No valid <columns> variable provided. Crosstabs will be aborted.")
+            return(invisible(NULL))
+        }
     }
 
     if (length(columns) > 1){
-        message(" X ERROR: Only one variable for columns allowed. Crosstabs will be aborted.")
+        message(" X ERROR: Only one variable for <columns> allowed. Crosstabs will be aborted.")
         return(invisible(NULL))
     }
 
-    # Convert to character vectors
-    by_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(by))))
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # By variables
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    if (substr(by_temp, 1, 2) == "c("){
-        by <- as.character(substitute(by))
-    }
-    else if (!is_error(by)){
-        # Do nothing. In this case variables already contains the substituted variable names
-        # while variables_temp is evaluated to the symbol passed into the function.
-    }
-    else{
-        by <- by_temp
-    }
+    by <- get_origin_as_char(by, substitute(by))
 
-    # Remove extra first character created with substitution
-    by <- by[by != "c"]
+    # Make sure that the variables provided are part of the data frame.
+    by <- data_frame |> part_of_df(by)
 
-    provided_by <- by
-    invalid_by  <- by[!by %in% names(data_frame)]
-    by          <- by[by %in% names(data_frame)]
+    # Make sure there is no class variable that is also a value variable.
+    variables <- c(rows, columns)
+    by        <- resolve_intersection(by, variables)
 
-    if (length(invalid_by) > 0){
-        message(" ! WARNING: The provided by variable '", paste(invalid_by, collapse = ", "), "' is not part of\n",
-                "            the data frame. This variable will be omitted during computation.")
-    }
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Weight
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    variables  <- c(rows, columns)
-    invalid_by <- by[by %in% variables]
+    weight     <- get_origin_as_char(weight, substitute(weight))
+    data_frame <- data_frame |> check_weight(weight)
+    weight_var <- ".temp_weight"
 
-    if (length(invalid_by) > 0){
-        message(" X ERROR: The provided by variable '", paste(invalid_by, collapse = ", "), "' is also part of\n",
-                "          the row and column variables which is not allowed. Crosstabs will be aborted.")
-        return(invisible(NULL))
-    }
-
-    # Create temporary weight column if none is provided.
-    # Also get the name of the weight variable as string.
-    weight_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(weight))))
-
-    if (weight_temp == "NULL" || substr(weight_temp, 1, 2) == "c("){
-        weight_var <- ".temp_weight"
-        data_frame[[".temp_weight"]] <- 1
-
-        if (substr(weight_temp, 1, 2) == "c("){
-            message(" ! WARNING: Only one variable for weight allowed. Evaluations will be unweighted.")
-        }
-    }
-    else if (!is_numeric(data_frame[[weight_temp]])){
-        weight_var <- ".temp_weight"
-        data_frame[[".temp_weight"]] <- 1
-
-        message(" ! WARNING: Provided weight variable is not numeric. Unweighted results will be computed.")
-    }
-    else{
-        weight_var <- weight_temp
-
-        # NA values in weight lead to errors therefor convert them to 0
-        if (anyNA(data_frame[[weight_temp]])){
-            message(" ~ NOTE: Missing values in weight variable '", weight_temp, "' will be converted to 0.")
-        }
-        data_frame[[weight_temp]] <- data.table::fifelse(is.na(data_frame[[weight_temp]]), 0, data_frame[[weight_temp]])
-
-        # @Hack: so I don't have to check if .temp_weight exists later on
-        data_frame[[".temp_weight"]] <- 1
-    }
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Output
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     # Check for invalid output option
     if (!tolower(output) %in% c("console", "text", "excel", "excel_nostyle")){
-        message(" ! WARNING: Output format '", output, "' not available. Using 'console' instead.")
+        message(" ! WARNING: <Output> format '", output, "' not available. Using 'console' instead.")
 
         output <- "console"
     }
@@ -337,7 +277,7 @@ crosstabs <- function(data_frame,
 
     # Get the intersection of the requested statistics to make sure
     # only valid actions are passed down
-    statistics <- statistics[unique(statistics) %in%
+    statistics <- statistics[collapse::funique(statistics) %in%
                              c("sum", "freq", "pct_row", "pct_column", "pct_total")]
 
     # If no valid statistics selected, default to sum
@@ -349,8 +289,14 @@ crosstabs <- function(data_frame,
     # Cross tabulation starts
     ###########################################################################
 
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Summary", "Summary")
+    #-------------------------------------------------------------------------#
     message("\n > Computing stats.")
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Summarise data according to provided variables
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     # Summarise results for a crosstabs output
     data_frame[["var"]] <- 1
@@ -373,7 +319,7 @@ crosstabs <- function(data_frame,
             collapse::frename(var_pct_group = var_pct_row)
 
         # Get the expressions of the column variable to use them later as column names
-        column_names <- unique(as.character(cross_tab[[columns]]))
+        column_names <- collapse::funique(as.character(cross_tab[[columns]]))
 
         # Add unique ids to column variables so that the pivoted variable names receive
         # running numbers instead of the values or labels.
@@ -441,21 +387,26 @@ crosstabs <- function(data_frame,
         return(invisible(NULL))
     }
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Prepare table format for output
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     message(" > Formatting tables.")
 
     if (output %in% c("console", "text")){
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Format tables", "Format tables")
+        #---------------------------------------------------------------------#
 
         # In case no by variables are provided
         if (length(by) == 0){
             complete_table  <- format_cross_text(cross_tab, rows, columns, column_names,
-                                                 statistics, formats, by, titles, footnotes)
+                                                 statistics, formats, by, titles, footnotes, show_total)
         }
         # In case there are  by variables are provided
         else{
             complete_table <- format_cross_by_text(cross_tab, rows, columns, column_names,
-                                                   statistics, formats, by, titles, footnotes, na.rm)
+                                                   statistics, formats, by, titles, footnotes, na.rm, show_total)
         }
     }
     else if (output == "excel" || output == "excel_nostyle"){
@@ -467,7 +418,7 @@ crosstabs <- function(data_frame,
         # In case no by variables are provided
         if (length(by) == 0){
             wb_list <- format_cross_excel(wb, cross_tab, rows, columns, column_names,
-                                          statistics, formats, by, titles, footnotes, style, output,
+                                          statistics, formats, by, titles, footnotes, style, output, show_total,
                                           monitor_df = monitor_df)
 
             wb         <- wb_list[[1]]
@@ -477,33 +428,54 @@ crosstabs <- function(data_frame,
         else{
             wb_list <- format_cross_by_excel(cross_tab, rows, columns, column_names,
                                              statistics, formats, by, titles, footnotes,
-                                             style, output, na.rm, wb, monitor_df)
+                                             style, output, show_total, na.rm, wb, monitor_df)
 
             wb         <- wb_list[[1]]
             monitor_df <- wb_list[[2]]
         }
     }
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Output formatted table into different formats
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     if (print){
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Output tables", "Output tables")
+        #---------------------------------------------------------------------#
 
         if (output %in% c("console")){
             cat(paste(complete_table, collapse = "\n"), "\n\n")
         }
+        # Open in text editor
         else if (output == "text"){
             temp_file <- tempfile(fileext = ".txt")
             writeLines(complete_table, temp_file)
-            file.show(temp_file)
+
+            if (interactive()){
+                file.show(temp_file)
+            }
         }
         else if (output == "excel" || output == "excel_nostyle"){
-            if (is.null(style[["file"]])){
-                if(interactive()){
+            # If no save path or file provided just open workbook
+            if (is.null(style[["save_path"]]) || is.null(style[["file"]])){
+                if (interactive()){
                     wb$open()
                 }
             }
             else{
-                wb$save(file = style[["file"]], overwrite = TRUE)
+                # If save path doesn't exist, just open workbook
+                if (!file.exists(style[["save_path"]])){
+                    message(" ! WARNING: Path does not exist: ", style[["save_path"]])
+
+                    if (interactive()){
+                        wb$open()
+                    }
+                }
+                # Save file
+                else{
+                    wb$save(file = paste0(style[["save_path"]], "/", style[["file"]]), overwrite = TRUE)
+                }
             }
         }
     }
@@ -511,8 +483,10 @@ crosstabs <- function(data_frame,
     end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
     message("\n- - - 'crosstabs' execution time: ", end_time, " seconds\n")
 
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_end()
     monitor_df |> monitor_plot(draw_plot = monitor)
+    #-------------------------------------------------------------------------#
 
     invisible(cross_tab)
 }
@@ -550,39 +524,47 @@ format_cross_text <- function(cross_tab,
                               formats,
                               by,
                               titles,
-                              footnotes){
+                              footnotes,
+                              show_total){
     complete_tabs <- c()
 
     # Set equal number of maximum column width
     sum_tab          <- setup_print_table(cross_tab, rows, "sum")
-    longest_value    <- nchar(format(sum_tab[nrow(sum_tab), "total"], scientific = FALSE))
+    longest_value    <- collapse::vlengths(format(sum_tab[collapse::fnrow(sum_tab), "total"], scientific = FALSE))
     max_column_width <- max(8, longest_value + 7)
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Compute individual cross tables for each operation
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     for (stat in statistics){
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # Prepare header
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         # Setup cross table for formatting
         var_tab <- setup_print_table(cross_tab, rows, stat)
 
         # Get the maximum width of the provided variable names to determine the width
         # of the first column.
-        first_column_width <- nchar(paste0(rows, " / ", columns))
+        first_column_width <- collapse::vlengths(paste0(rows, " / ", columns))
 
         first_column_width <- max(first_column_width,
-                                  nchar(stats::na.omit(as.character(var_tab[[rows]]))))
+                                  collapse::vlengths(collapse::na_omit(as.character(var_tab[[rows]]))))
 
-        # Use the max column width to evenly spread the columns.
-        # Wrap the column headers according to this width.
-        if (!is_multilabel(formats, columns)){
-            multi_header   <- wrap_header(c(column_names, "total"), max_column_width)
-
-            formatted_cols <- vector("list", length(c(column_names, "total")))
-        }
         # In case of multilabels don't add total column
-        else{
+        if(is_multilabel(formats, columns) || !show_total){
             multi_header   <- wrap_header(column_names, max_column_width)
 
             var_tab        <- var_tab |> dropp("total")
             formatted_cols <- vector("list", length(column_names))
+        }
+        # Use the max column width to evenly spread the columns.
+        # Wrap the column headers according to this width.
+        else{
+            multi_header   <- wrap_header(c(column_names, "total"), max_column_width)
+
+            formatted_cols <- vector("list", length(c(column_names, "total")))
         }
 
         # Format the first column and connect it with the rest of the header
@@ -592,25 +574,25 @@ format_cross_text <- function(cross_tab,
                           rep(paste0(format("",
                                             width   = first_column_width,
                                             justify = "left"), " |"),
-                              nrow(multi_header) - 1))
+                              collapse::fnrow(multi_header) - 1))
         multi_header <- cbind(first_column, multi_header)
 
         # Visually separate total column if there is one
         total_col <- FALSE
 
-        if (trimws(multi_header[1, ncol(multi_header)]) == "total"){
+        if (trimws(multi_header[1, collapse::fncol(multi_header)]) == "total"){
             total_col <- TRUE
 
-            multi_header[1, ncol(multi_header)] <-
-                paste0(" | ", multi_header[1, ncol(multi_header)])
+            multi_header[1, collapse::fncol(multi_header)] <-
+                paste0(" | ", multi_header[1, collapse::fncol(multi_header)])
         }
 
         # Convert header matrix into character vector with single lines
         complete_header <- apply(multi_header, 1, paste, collapse = " ")
-        complete_header <- c(complete_header, strrep("-", nchar(complete_header[1])))
+        complete_header <- c(complete_header, strrep("-", collapse::vlengths(complete_header[1])))
 
         # If row multilabel, remove automatically computed total observation
-        if (is_multilabel(formats, rows)){
+        if (is_multilabel(formats, rows) || !show_total){
             var_tab <- var_tab |>
                 collapse::fsubset(var_tab[[rows]] != "total")
 
@@ -622,9 +604,12 @@ format_cross_text <- function(cross_tab,
             }
         }
 
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         # Format table column by column. Basically concatenate first column text and
         # corresponding values together while keeping the individual maximum column
         # width in mind.
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         first_column <- paste0(format(var_tab[[rows]],
                                       width   = first_column_width,
                                       justify = "left"), " | ")
@@ -660,6 +645,10 @@ format_cross_text <- function(cross_tab,
             }
         }
 
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # Put everything together
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         # Convert list to matrix
         formatted_matrix <- do.call(cbind, formatted_cols)
 
@@ -668,11 +657,11 @@ format_cross_text <- function(cross_tab,
                            apply(formatted_matrix, 1, paste, collapse = " "))
 
         # If no multilabel formats are applied separate total row at the bottom from the rest
-        if (!is_multilabel(formats, rows)){
+        if (!is_multilabel(formats, rows) && show_total){
             rows_temp <- length(all_rows)
 
             all_rows <- c(all_rows[1:(rows_temp - 1)],
-                          strrep("-", nchar(complete_header[1])),
+                          strrep("-", collapse::vlengths(complete_header[1])),
                           all_rows[rows_temp])
         }
 
@@ -794,7 +783,7 @@ setup_print_table <- function(cross_tab, rows, stat){
         var_tab[["total"]] <- NA
     }
     else if (stat == "pct_row"){
-        var_tab[nrow(var_tab), -1] <- NA
+        var_tab[collapse::fnrow(var_tab), -1] <- NA
     }
 
     var_tab
@@ -847,14 +836,22 @@ format_cross_excel <- function(wb,
                                footnotes,
                                style,
                                output,
+                               show_total,
                                by_info = NULL,
                                index   = NULL,
                                monitor_df){
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_start("Excel prepare", "Format")
+    #-------------------------------------------------------------------------#
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Compute individual cross tables for each operation
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     for (stat in statistics){
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Excel prepare", "Format")
+        #---------------------------------------------------------------------#
 
         # Setup cross table for formatting
         var_tab <- setup_print_table(cross_tab, rows, stat)
@@ -872,7 +869,7 @@ format_cross_excel <- function(wb,
         }
 
         # If row multilabel, remove automatically computed total observation
-        if (is_multilabel(formats, rows)){
+        if (is_multilabel(formats, rows) || !show_total){
             var_tab <- var_tab |>
                 collapse::fsubset(var_tab[[rows]] != "total")
 
@@ -888,7 +885,7 @@ format_cross_excel <- function(wb,
 
         # If column multilabel, remove automatically computed total column.
         # Set the real column names according to number of columns.
-        if (is_multilabel(formats, columns)){
+        if (is_multilabel(formats, columns) || !show_total){
             var_tab <- var_tab |> dropp("total")
 
             names(var_tab) <- c(paste0(rows, " / ", columns), column_names)
@@ -915,14 +912,22 @@ format_cross_excel <- function(wb,
             wb$add_worksheet(stat, grid_lines = style[["grid_lines"]])
         }
 
-        # Format titles and footnotes if there are any
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # Apply style
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Excel titles/footnotes", "Format")
+        #---------------------------------------------------------------------#
+        # Format titles and footnotes if there are any
         wb <- wb |>
             format_titles_foot_excel(titles, footnotes, cross_ranges, style, output)
 
-        # Add table data and format according to style options
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Excel data", "Format")
+        #---------------------------------------------------------------------#
 
+        # Add table data and format according to style options
         wb$add_data(x          = var_tab,
                     start_col  = style[["start_column"]],
                     start_row  = cross_ranges[["header.row"]],
@@ -932,7 +937,9 @@ format_cross_excel <- function(wb,
         # option this whole part gets omitted to get a very quick unformatted
         # excel output.
         if (output == "excel"){
+            #-----------------------------------------------------------------#
             monitor_df <- monitor_df |> monitor_next("Excel cell styles", "Format")
+            #-----------------------------------------------------------------#
             wb <- wb |> handle_cell_styles(cross_ranges, style)
 
             if (stat == "sum" || stat== "freq"){
@@ -946,11 +953,26 @@ format_cross_excel <- function(wb,
                                   num_fmt_id          = wb$styles_mgr$get_numfmt_id("pct_numfmt"))
             }
 
+            # Draw inner table cells as heat map with conditional formatting
+            if (style[["as_heatmap"]]){
+                #-----------------------------------------------------------------#
+                monitor_df <- monitor_df |> monitor_next("Excel format heatmap", "Format")
+                #-----------------------------------------------------------------#
+
+                wb$add_conditional_formatting(dims  = cross_ranges[["table_range"]],
+                                              style = c(style[["heatmap_low_color"]],
+                                                        style[["heatmap_middle_color"]],
+                                                        style[["heatmap_high_color"]]),
+                                              type  = "colorScale")
+            }
+
             # Adjust table dimensions
+            #-----------------------------------------------------------------#
             monitor_df <- monitor_df |> monitor_next("Excel widths/heights", "Format")
+            #-----------------------------------------------------------------#
             wb <- wb |> handle_col_row_dimensions(cross_ranges,
-                                                  ncol(var_tab) + (style[["start_column"]] - 1),
-                                                  nrow(var_tab) + (style[["start_row"]] - 1),
+                                                  collapse::fncol(var_tab) + (style[["start_column"]] - 1),
+                                                  collapse::fnrow(var_tab) + (style[["start_row"]] - 1),
                                                   style)
 
             wb <- wb |> handle_auto_dimensions(cross_ranges,
@@ -1008,7 +1030,8 @@ format_cross_by_text <- function(cross_tab,
                                  by,
                                  titles,
                                  footnotes,
-                                 na.rm){
+                                 na.rm,
+                                 show_total){
     # Print message if multilabels are applied
     if (is_multilabel(formats, rows)){
         if ("pct_row" %in% statistics){
@@ -1019,7 +1042,10 @@ format_cross_by_text <- function(cross_tab,
 
     complete_tabs <- c()
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Loop through all by variables
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     for (by_var in by){
         # Select by variables one by one
         cross_by <- cross_tab |>
@@ -1027,13 +1053,16 @@ format_cross_by_text <- function(cross_tab,
 
         # Extract unique values
         if (anyNA(cross_by[["by_vars"]])){
-            values <- c(unique(stats::na.omit(cross_by[["by_vars"]])), NA)
+            values <- c(collapse::funique(collapse::na_omit(cross_by[["by_vars"]])), NA)
         }
         else{
-            values <- unique(cross_by[["by_vars"]])
+            values <- collapse::funique(cross_by[["by_vars"]])
         }
 
-        # Loop through all unique values to generate frequency tables per expression
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # Loop through all unique values to generate tables per expression
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         for (value in values){
             # In case NAs are removed
             if (is.na(value) && na.rm){
@@ -1044,9 +1073,9 @@ format_cross_by_text <- function(cross_tab,
             # and which value is currently filtered.
             header <- paste0("| ", by_var, " = ", value, " |")
 
-            complete_header <- c("\n", strrep("-", nchar(header)),
+            complete_header <- c("\n", strrep("-", collapse::vlengths(header)),
                                  header,
-                                 strrep("-", nchar(header)))
+                                 strrep("-", collapse::vlengths(header)))
 
             # Filter table by current by variable and value
             if (!is.na(value)){
@@ -1067,7 +1096,8 @@ format_cross_by_text <- function(cross_tab,
                                                formats,
                                                by,
                                                titles,
-                                               footnotes)
+                                               footnotes,
+                                               show_total)
 
             # Output formatted result
             complete_tabs <- c(complete_tabs, complete_header, current_cross)
@@ -1120,10 +1150,13 @@ format_cross_by_excel <- function(cross_tab,
                                   footnotes,
                                   style,
                                   output,
+                                  show_total,
                                   na.rm,
                                   wb,
                                   monitor_df){
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_start("Excel prepare (by)", "Format by")
+    #-------------------------------------------------------------------------#
 
     # Print message if multilabels are applied
     if (is_multilabel(formats, rows)){
@@ -1133,13 +1166,18 @@ format_cross_by_excel <- function(cross_tab,
         }
     }
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Loop through all by variables
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     index <- 1
 
-    # Loop through all by variables
     monitor_df <- monitor_df |> monitor_end()
 
     for (by_var in by){
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_start(paste0("Excel prepare (", by_var, ")"), "Format by")
+        #---------------------------------------------------------------------#
 
         # Select by variables one by one
         cross_by <- cross_tab |>
@@ -1147,22 +1185,27 @@ format_cross_by_excel <- function(cross_tab,
 
         # Extract unique values
         if (anyNA(cross_by[["by_vars"]])){
-            values <- c(unique(stats::na.omit(cross_by[["by_vars"]])), NA)
+            values <- c(collapse::funique(collapse::na_omit(cross_by[["by_vars"]])), NA)
         }
         else{
-            values <- unique(cross_by[["by_vars"]])
+            values <- collapse::funique(cross_by[["by_vars"]])
         }
 
         monitor_df <- monitor_df |> monitor_end()
 
-        # Loop through all unique values to generate frequency tables per expression
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # Loop through all unique values to generate tables per expression
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         for (value in values){
             # In case NAs are removed
             if (is.na(value) && na.rm){
                 next
             }
 
+            #-----------------------------------------------------------------#
             monitor_df <- monitor_df |> monitor_start(paste0("Excel (", by_var, "_", value, ")"), "Format by")
+            #-----------------------------------------------------------------#
             message("   + ", paste0(by_var, " = ", value))
 
             # Put additional by info together with the information which by variable
@@ -1192,6 +1235,7 @@ format_cross_by_excel <- function(cross_tab,
                                           footnotes,
                                           style,
                                           output,
+                                          show_total,
                                           by_info,
                                           index,
                                           NULL)

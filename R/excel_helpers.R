@@ -100,14 +100,14 @@ get_any_table_ranges <- function(table,
     }
 
     # Get the basic starting cells, as well as table dimensions
-    header.width  <- ncol(multi_header)
-    header.length <- nrow(multi_header)
+    header.width  <- collapse::fncol(multi_header)
+    header.length <- collapse::fnrow(multi_header)
 
     table.row     <- header.row + header.length
-    table.length  <- nrow(table)
-    table.width   <- ncol(table)
+    table.length  <- collapse::fnrow(table)
+    table.width   <- collapse::fncol(table)
     table.end     <- header.column + table.width - 1
-    cat_col.width <- ncol(table) - ncol(multi_header)
+    cat_col.width <- collapse::fncol(table) - collapse::fncol(multi_header)
 
     footnote.row <- table.row + table.length + 1
 
@@ -231,7 +231,7 @@ get_any_tab_ranges <- function(any_tab,
 #' @noRd
 handle_col_header_merge <- function(wb, column_header, ranges){
     # Get all values in order of appearance with their respective lengths
-    row_values <- lapply(seq_len(nrow(column_header)), function(row){
+    row_values <- lapply(seq_len(collapse::fnrow(column_header)), function(row){
         rle(as.character(column_header[row, ]))
     })
 
@@ -318,7 +318,7 @@ handle_row_header_merge <- function(wb, row_header, ranges){
     }
 
     # Get all values in order of appearance with their respective lengths (per column)
-    col_values <- lapply(seq_len(ncol(row_header)), function(column){
+    col_values <- lapply(seq_len(collapse::fncol(row_header)), function(column){
         rle(as.character(row_header[, column]))
     })
 
@@ -420,7 +420,7 @@ get_df_ranges <- function(data_frame,
 
     format_index <- 1
 
-    for (i in seq_len(ncol(data_frame))){
+    for (i in seq_len(collapse::fncol(data_frame))){
         # If a variable doesn't have a statistics extension, it is likely not
         # a variable that needs a number format.
         var_end <- sub("p[0-9]+$", "p", utils::tail(strsplit(names(data_frame)[[i]], "_")[[1]], 1))
@@ -496,11 +496,11 @@ get_table_ranges <- function(table,
     }
 
     # Get the basic starting cells, as well as table dimensions
-    header.width  <- ncol(table) - 1
+    header.width  <- collapse::fncol(table) - 1
 
     table.row     <- header.row + 1
-    table.length  <- nrow(table)
-    table.width   <- ncol(table)
+    table.length  <- collapse::fnrow(table)
+    table.width   <- collapse::fncol(table)
     table.end     <- header.column + table.width - 1
     cat_col.width <- 1
 
@@ -826,17 +826,39 @@ handle_cell_styles <- function(wb,
                                style = excel_output_style()){
     # Apply individual styles for each table part
     for (type in c("header", "box", "cat_col", "table")){
+
+        apply_font <- NULL
+        font_id    <- NULL
+        if (paste0(type, "_font") %in% wb$styles_mgr$font$name) {
+            apply_font <- TRUE
+            font_id    <- wb$styles_mgr$get_font_id(paste0(type, "_font"))
+        }
+
+        apply_border <- NULL
+        border_id    <- NULL
+        if (paste0(type, "_borders") %in% wb$styles_mgr$border$name) {
+            apply_border <- TRUE
+            border_id    <- wb$styles_mgr$get_border_id(paste0(type, "_borders"))
+        }
+
+        apply_fill <- NULL
+        fill_id    <- NULL
+        if (paste0(type, "_fill") %in% wb$styles_mgr$fill$name) {
+            apply_fill <- TRUE
+            fill_id    <- wb$styles_mgr$get_fill_id(paste0(type, "_fill"))
+        }
+
         wb$add_cell_style(dims         = ranges[[paste0(type, "_range")]],
                           horizontal   = style[[paste0(type, "_alignment")]],
                           vertical     = "center",
                           wrap_text    = style[[paste0(type, "_wrap")]],
                           indent       = style[[paste0(type, "_indent")]],
-                          apply_font   = TRUE,
-                          font_id      = wb$styles_mgr$get_font_id(paste0(type, "_font")),
-                          apply_border = TRUE,
-                          border_id    = wb$styles_mgr$get_border_id(paste0(type, "_borders")),
-                          apply_fill   = TRUE,
-                          fill_id      = wb$styles_mgr$get_fill_id(paste0(type, "_fill")))
+                          apply_font   = apply_font,
+                          font_id      = font_id,
+                          apply_border = apply_border,
+                          border_id    = border_id,
+                          apply_fill   = apply_fill,
+                          fill_id      = fill_id)
     }
 
     wb
@@ -1278,8 +1300,8 @@ fill_or_trim <- function(format_vector,
 #' Set different options which define the visual output of 'Excel' tables produced
 #' by [frequencies()], [crosstabs()] and [any_table()].
 #'
-#' @param file If NULL, opens the output as temporary file. If a filename with path
-#' is specified, saves the output to the specified path.
+#' @param save_path If NULL, opens the output as temporary file. Otherwise specify an output path.
+#' @param file If NULL, opens the output as temporary file. Otherwise specify a filename with extension.
 #' @param sheet_name Name of the sheet inside the workbook to which the output shall be written.
 #' If multiple outputs are produced in one go, the sheet name additionally receives a running number.
 #' @param font Set the font to be used for the entire output.
@@ -1329,6 +1351,10 @@ fill_or_trim <- function(format_vector,
 #' @param table_indent Indentation level of the inner table cells.
 #' @param table_borders Whether to draw borders around the inner table cells.
 #' @param table_border_color Borders colors of the inner table cells.
+#' @param as_heatmap Whether to lay a conditional formatting over the values.
+#' @param heatmap_low_color The color for lower values in the conditional formatting.
+#' @param heatmap_middle_color The color for middle values in the conditional formatting.
+#' @param heatmap_high_color The color for high values in the conditional formatting.
 #' @param box_back_color Background color of the left box in table header.
 #' @param box_font_color Font color of the left box in table header.
 #' @param box_font_size Font size of the left box in table header.
@@ -1369,6 +1395,8 @@ fill_or_trim <- function(format_vector,
 #' Creating a custom table style: [modify_output_style()],
 #' [number_format_style()], [modify_number_formats()].
 #'
+#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()],
 #' [export_with_style()]
 #'
@@ -1384,7 +1412,8 @@ fill_or_trim <- function(format_vector,
 #' excel_style <- excel_output_style(table_back_color = "")
 #'
 #' @export
-excel_output_style <- function(file                 = NULL,
+excel_output_style <- function(save_path			= NULL,
+							   file                 = NULL,
                                sheet_name           = "Table",
                                font                 = "Arial",
                                column_widths        = "auto",
@@ -1425,6 +1454,10 @@ excel_output_style <- function(file                 = NULL,
                                table_indent         = 1,
                                table_borders        = FALSE,
                                table_border_color   = "000000",
+							   as_heatmap           = FALSE,
+							   heatmap_low_color    = "F8696B",
+							   heatmap_middle_color = "FFFFFF",
+							   heatmap_high_color   = "63BE7B",
                                box_back_color       = "FFFFFF",
                                box_font_color       = "000000",
                                box_font_size        = 10,
@@ -1476,6 +1509,8 @@ excel_output_style <- function(file                 = NULL,
 #' @seealso
 #' Creating a custom table style: [excel_output_style()],
 #' [number_format_style()], [modify_number_formats()].
+#'
+#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
 #'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()],
 #' [export_with_style()]
@@ -1572,6 +1607,8 @@ modify_output_style <- function(style_to_modify, ...){
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [modify_number_formats()].
 #'
+#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()],
 #' [export_with_style()]
 #'
@@ -1653,6 +1690,8 @@ number_format_style <- function(pct_excel         = "0.0",
 #' @seealso
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [number_format_style()].
+#'
+#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
 #'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()],
 #' [export_with_style()].

@@ -36,6 +36,7 @@ drop_type_vars <- function(data_frame){
     data_frame |> dropp("TYPE", "TYPE_NR", "DEPTH")
 }
 
+
 #' Fuse Multiple Variables
 #'
 #' @description
@@ -96,34 +97,14 @@ fuse_variables <- function(data_frame,
 
     if (length(new_variable_name) > 1){
         message(" X ERROR: No vector allowed. Only one new variable can be generated.")
-        return(data_frame)
+        return(invisible(data_frame))
     }
 
     # Convert to character vectors
-    fuse_temp <- sub("^list\\(", "c(", gsub("\"", "", deparse(substitute(variables_to_fuse))))
-
-    if (fuse_temp == "group_vars"){
-    }
-    else if (!is_error(fuse_temp)){
-        # Do nothing. In this case values already contains the substituted variable names
-        # while values_temp is evaluated to the symbol passed into the function.
-    }
-    else if (substr(fuse_temp, 1, 2) == "c("){
-        variables_to_fuse  <- as.character(substitute(variables_to_fuse))[-1]
-    }
-    else{
-        variables_to_fuse <- fuse_temp
-    }
+    variables_to_fuse <- get_origin_as_char(variables_to_fuse, substitute(variables_to_fuse))
 
     # Make sure that the variables provided are part of the data frame.
-    provided_fuse     <- variables_to_fuse
-    invalid_fuse      <- variables_to_fuse[!variables_to_fuse %in% names(data_frame)]
-    variables_to_fuse <- variables_to_fuse[variables_to_fuse %in% names(data_frame)]
-
-    if (length(invalid_fuse) > 0){
-        message(" ! WARNING: The provided variable to fuse '", paste(invalid_fuse, collapse = ", "), "' is not part of\n",
-                "            the data frame. This variable will be omitted during computation.")
-    }
+    variables_to_fuse <- data_frame |> part_of_df(variables_to_fuse)
 
     # Convert the group columns to character so coalesce works properly
     selected_data   <- data_frame[variables_to_fuse]
@@ -137,36 +118,6 @@ fuse_variables <- function(data_frame,
     }
 
     data_frame |> data.table::setcolorder(new_variable_name)
-}
-
-#' Get Variable Names which are not Part of the Given Vector
-#'
-#' @description
-#' If you have stored variable names inside a character vector, this function gives you
-#' the inverse variable name vector.
-#'
-#' @param data_frame The data frame from which to take the variable names.
-#' @param var_names A character vector of variable names.
-#'
-#' @return
-#' Returns the inverse vector of variable names compared to the given vector.
-#'
-#' @examples
-#' # Example data frame
-#' my_data <- dummy_data(1000)
-#'
-#' # Get variable names
-#' var_names <- c("year", "age", "sex")
-#' other_names <- my_data |> inverse(var_names)
-#'
-#' # Can also be used to just get all variable names
-#' all_names <- my_data |> inverse(NULL)
-#' all_names <- my_data |> inverse(character(0))
-#'
-#'
-#' @export
-inverse <- function(data_frame, var_names){
-    names(data_frame)[!names(data_frame) %in% var_names]
 }
 
 
@@ -211,287 +162,103 @@ setcolorder_by_pattern <- function(data_frame, pattern){
              value = TRUE, ignore.case = TRUE)
     }))
 
-    ordered_cols <- unique(ordered_cols)
+    ordered_cols <- collapse::funique(ordered_cols)
 
     # Put the ordered columns at the end of the data frame
     data_frame |> data.table::setcolorder(ordered_cols, after = ncol(data_frame))
 }
 
 
-#' Replace Patterns Inside Variable Names
+#' Add Empty Variables In A Given Range
 #'
 #' @description
-#' Replace a certain pattern inside a variable name with a new one. This can be
-#' used if there are multiple different variable names which have a pattern in
-#' common (e.g. all end in "_sum" but start different), so that there don't have
-#' to be multiple rename variable calls.
+#' Add empty variables to a data frame in the provided range. Basically does in a
+#' data frame, what paste0("age", 1:10) does for a vector.
 #'
-#' @param data_frame The data frame in which there are variables to be renamed.
-#' @param old_pattern The pattern which should be replaced in the variable names.
-#' @param new_pattern The pattern which should be set in place for the old one.
+#' @param data_frame A data frame to add variables to.
+#' @param var_range A range of variables to add, provided in the form: var_name1:var_name10.
 #'
 #' @return
-#' Returns a data frame with renamed variables.
+#' Returns a data frame with added variables.
+#'
+#' @examples
+#' # Example data frames
+#' my_data <- dummy_data(100)
+#'
+#' # Add variable range
+#' my_data <- my_data |> add_variable_range(status1:status12)
+#'
+#' @export
+add_variable_range <- function(data_frame, var_range){
+    var_range <- get_origin_as_char(var_range, substitute(var_range))
+
+    # Using regex to capture prefix, start number, and end number
+    # Meaning: (prefix)(start):(prefix)(end)
+    pattern <- "^([A-Za-z_.]+)([0-9]+):\\1([0-9]+)$"
+
+    if (!grepl(pattern, var_range)){
+        message(" X ERROR: Variable range has to be provided in the form 'var_name1:var_name10'.\n",
+                "          Variable names must match. No variables will be added.")
+        return(invisible(data_frame))
+    }
+
+    # Put together variable names
+    prefix <- gsub(pattern, "\\1", var_range)
+    start  <- as.numeric(gsub(pattern, "\\2", var_range))
+    end    <- as.numeric(gsub(pattern, "\\3", var_range))
+
+    var_names <- paste0(prefix, start:end)
+
+    # If variable names are already part of the data frame, abort
+    invalid_variables <- var_names[var_names %in% names(data_frame)]
+
+    if (length(invalid_variables) > 0){
+        message(" X ERROR: Some variables are already part of the data frame: ", paste(invalid_variables, collapse = ", "), "\n",
+                "          No variables will be added.")
+        return(invisible(data_frame))
+    }
+
+    # Create new variables in their own data frame first
+    new_columns <- collapse::qDF(matrix(NA_integer_,
+                                        nrow = collapse::fnrow(data_frame),
+                                        ncol = end))
+
+    names(new_columns) <- paste0(prefix, start:end)
+
+    # Add new empty variables to data frame
+    collapse::add_vars(data_frame, new_columns)
+}
+
+
+#' Get Integer Length
+#'
+#' @description
+#' Get the number of digits of an integer variable.
+#'
+#' @param variable The integer variable from which to get the length.
+#'
+#' @return
+#' Returns a vector with the number of digits places.
 #'
 #' @examples
 #' # Example data frame
-#' my_data <- dummy_data(1000)
+#' my_data <- dummy_data(100)
 #'
-#' # Summarise data
-#' all_nested <- my_data |>
-#'     summarise_plus(class      = c(year, sex),
-#'                    values     = c(weight, income),
-#'                    statistics = c("sum", "pct_group", "pct_total", "sum_wgt", "freq"),
-#'                    weight     = weight,
-#'                    nesting    = "deepest",
-#'                    na.rm      = TRUE)
-#'
-#' # Rename variables by repacing patterns
-#' new_names <- all_nested |>
-#'     rename_pattern("pct", "percent") |>
-#'     rename_pattern("_sum", "")
+#' my_data[["age_length"]] <- get_integer_length(my_data[["age"]])
 #'
 #' @export
-rename_pattern <- function(data_frame, old_pattern, new_pattern){
-    if (length(old_pattern) > 1 || length(new_pattern) > 1){
-        message(" X ERROR: Only single pattern allowed. Rename pattern will be aborted.")
-        return(data_frame)
+get_integer_length <- function(variable){
+    if (!is.numeric(variable)){
+        message(" X ERROR: Only numeric values allowed.")
+
+        return(invisible(NA_integer_))
     }
 
-    # Replace old_pattern with new_pattern in all column names
-    new_names <- gsub(old_pattern, new_pattern, names(data_frame))
-    names(data_frame) <- new_names
+    if (!is.integer(variable)){
+        message(" ! WARNING: Variable is not an integer and will be floored. Decimal places won't count.")
 
-    data_frame
-}
-
-
-#' Replace Statistic From Variable Names
-#'
-#' @description
-#' Remove the statistic name from variable names, so that they get back their old
-#' names without extension.
-#'
-#' @param data_frame The data frame in which there are variables to be renamed.
-#' @param statistics Statistic extensions that should be removed from the variable names.
-#'
-#' @return
-#' Returns a data frame with renamed variables.
-#'
-#' @examples
-#' # Example data frame
-#' my_data <- dummy_data(1000)
-#'
-#' # Summarise data
-#' all_nested <- my_data |>
-#'     summarise_plus(class      = c(year, sex),
-#'                    values     = c(weight, income),
-#'                    statistics = c("sum", "pct_group", "pct_total", "sum_wgt", "freq"),
-#'                    weight     = weight,
-#'                    nesting    = "deepest",
-#'                    na.rm      = TRUE)
-#'
-#' # Remove statistic extension
-#' new_names <- all_nested |> remove_stat_extension("sum")
-#'
-#' @export
-remove_stat_extension <- function(data_frame, statistics){
-    var_names <- names(data_frame)
-
-    # Remove statistic extensions
-    for (stat in statistics){
-        new_names <- sub(paste0("_", stat, "$"), "", var_names)
+        variable <- floor(variable)
     }
 
-    # Check if unique new names still have the same length as the original names.
-    # Only if this is true the new names can be applied.
-    if (length(var_names) == length(unique(new_names))){
-        names(data_frame) <- new_names
-    }
-    # If there are duplicate names abort
-    else{
-        message(" ! WARNING: New variable names are not unique. Statistic extensions won't be removed.")
-    }
-
-    data_frame
-}
-
-
-#' Add Extensions to Variable Names
-#'
-#' @description
-#' Renames variables in a data frame by adding the desired extensions to the original names.
-#' This can be useful if you want to use pre summarised data with [any_table()], which needs
-#' the value variables to have the statistic extensions.
-#'
-#' @param data_frame The data frame in which variables should gain extensions to their name.
-#' @param from The position of the variable inside the data frame at which to start the renaming.
-#' @param extensions The extensions to add.
-#' @param reuse "none" by default, meaning only the provided extensions will be set. E.g. if
-#' there are two extensions provided, two variables will be renamed. If "last", the last provided
-#' extension will be used for every following variable until the end of the data frame. If "repeat",
-#' the provided extensions will be repeated from the first one for every following variable until
-#' the end of the data frame.
-#'
-#' @return
-#' Returns a data frame with extended variable names.
-#'
-#' @examples
-#' # Example data frame
-#' my_data <- dummy_data(1000)
-#'
-#' # Add extensions to variable names
-#' new_names1 <- my_data |> add_extension(5, c("sum", "pct"))
-#' new_names2 <- my_data |> add_extension(5, c("sum", "pct"), reuse = "last")
-#' new_names3 <- my_data |> add_extension(5, c("sum", "pct"), reuse = "alternate")
-#'
-#' @export
-add_extension <- function(data_frame,
-                          from,
-                          extensions,
-                          reuse = "none"){
-    if (!is.numeric(from)){
-        message(" X ERROR: From needs to be numeric. Adding extensions will be aborted.")
-        return(data_frame)
-    }
-
-    if (!is.character(extensions)){
-        message(" X ERROR: Extensions need to be characters. Adding extensions will be aborted.")
-        return(data_frame)
-    }
-
-    if (from > ncol(data_frame)){
-        message(" X ERROR: From is greater than number of columns in data frame. Adding extensions will be aborted.")
-        return(data_frame)
-    }
-
-    if (!reuse %in% c("none", "last", "repeat")){
-        message(" ! WARNING: Reuse must be one of 'none', 'last', 'repeat'. 'none' will be used.")
-        reuse <- "none"
-    }
-
-    var_names <- names(data_frame)
-
-    # Columns to modify
-    target_columns <- from:length(var_names)
-    n_target       <- length(target_columns)
-    n_extensions   <- length(extensions)
-
-    # generally shorten extensions, if there are more than columns are left in the data frame
-    extensions <- extensions[seq_len(min(n_extensions, n_target))]
-
-    # Create the extended names
-    if (reuse == "last" && n_target - n_extensions > 0){
-        # Repeat the last extension for the remaining columns
-        extensions <- c(extensions, rep(extensions[n_extensions], n_target - n_extensions))
-    }
-    else if(reuse == "none"){
-        # Set new last column depending on number of extensions
-        last_column    <- from + (length(extensions) - 1)
-        target_columns <- from:last_column
-    }
-
-    # Apply extensions to variable names
-    names(data_frame)[target_columns] <- paste0(var_names[target_columns], "_", extensions)
-
-    data_frame
-}
-
-
-#' Replace Patterns While Protecting Exceptions
-#'
-#' @description
-#' Replaces a provided pattern with another, while protecting exceptions. Exceptions can
-#' contain the given pattern, but won't be changed during replacement.
-#'
-#' @param vector A vector containing the texts, where a pattern should be replaced.
-#' @param pattern The pattern that should be replaced.
-#' @param replacement The new pattern, which replaces the old one.
-#' @param exceptions A character vector containing exceptions, which should not be altered.
-#'
-#' @return
-#' Returns a vector with replaced pattern.
-#'
-#' @examples
-#' # Vector, where underscores hsould be replaced
-#' underscores <- c("my_variable", "var_with_underscores", "var_sum", "var_pct_total")
-#'
-#' # Extensions, where underscores shouldn't be replaced
-#' extensions <- c("_sum", "_pct_group", "_pct_total", "_pct_value", "_pct", "_freq_g0",
-#'                 "_freq", "_mean", "_median", "_mode", "_min", "_max", "_first",
-#'                 "_last", "_p1", "_p2", "_p3", "_p4", "_p5", "_p6", "_p7", "_p8", "_p9",
-#'                 "sum_wgt", "_sd", "_variance", "_missing")
-#'
-#' # Replace
-#' new_vector <- underscores |> replace_except("_", ".", extensions)
-#'
-#' @export
-replace_except <- function(vector,
-                           pattern,
-                           replacement,
-                           exceptions = NULL){
-    # Replace the pattern in the exceptions with a pseudo symbol
-    except_replace <- gsub(pattern, "&%!", exceptions)
-
-    # Protect exceptions in original vector
-    for (element in seq_along(vector)){
-        for (exception in seq_along(exceptions)){
-            vector[[element]] <- gsub(exceptions[[exception]],
-                                      except_replace[[exception]],
-                                      vector[[element]])
-        }
-    }
-
-    # Replace pattern safely
-    vector <- gsub(pattern, replacement, vector)
-
-    # Reestablish protected pattern
-    gsub("&%!", pattern, vector)
-}
-
-
-#' Check If Path Exists And Retrieve Files
-#'
-#' @description
-#' Libname checks if a given path exists and writes a message in the console accordingly.
-#' Optional all files from the given path can be retrieved as a named character vector.
-#'
-#' @param path A folder path.
-#' @param get_files FALSE by default. If TRUE returns a named character vector containing file paths.
-#'
-#' @return
-#' Returns the given file path or a named character vector containing file paths.
-#'
-#' @examples
-#' my_path   <- libname("C:/My_Path/")
-#' file_list <- libname("C:/My_Path/", get_files = TRUE)
-#'
-#' @export
-libname <- function(path,
-                    get_files = FALSE){
-    if (!file.exists(path)){
-        message(" X ERROR: Path does not exist: ", path)
-        return(invisible(NULL))
-    }
-
-    if (get_files){
-        # Retrieve all file paths from provided path
-        files <- list.files(path, full.names = TRUE)
-
-        # Strip paths and only keep file names with extension
-        files <- files[!dir.exists(files)]
-
-        if (length(files) == 0){
-            message(" X ERROR: No files found in directory: ", path)
-            return(invisible(NULL))
-        }
-
-        # Return named character vector
-        message("Filepaths successfully retrieved: ", path)
-        return(stats::setNames(files, basename(files)))
-    }
-
-    message("Path successfully assigned: ", path)
-
-    path
+    nchar(abs(variable))
 }

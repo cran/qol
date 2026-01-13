@@ -96,11 +96,13 @@ multi_join <- function(data_frames,
                        on,
                        how             = "left",
                        keep_indicators = FALSE,
-                       monitor         = FALSE){
+                       monitor         = .qol_options[["monitor"]]){
     # Measure the time
     start_time <- Sys.time()
 
+    #-------------------------------------------------------------------------#
     monitor_df <- NULL |> monitor_start("Error handling", "Preparation")
+    #-------------------------------------------------------------------------#
 
     # Check if a valid list of data frames is given
     if (!all(vapply(data_frames, is.data.frame, logical(1)))){
@@ -124,7 +126,10 @@ multi_join <- function(data_frames,
     # Error handling
     ###########################################################################
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # If a named list is given, a join with unequal variable names will be performed
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     unequal_names <- FALSE
 
     if (is.list(on)){
@@ -132,7 +137,7 @@ multi_join <- function(data_frames,
         if (!is.null(names(on)) && all(nzchar(names(on)))){
             # Check if number of list entries matches number of data frames
             if (length(data_frames) != length(on)){
-                message(" X ERROR: Length of 'on' doesn't match the number of provided data frames. Join will be aborted.")
+                message(" X ERROR: Length of <on> doesn't match the number of provided data frames. Join will be aborted.")
                 return(invisible(NULL))
             }
 
@@ -140,26 +145,30 @@ multi_join <- function(data_frames,
         }
         # If a list entry is missing a name abort
         else{
-            message(" X ERROR: If all data frames have the same variable names for the 'on' variables,\n",
+            message(" X ERROR: If all data frames have the same variable names for the <on> variables,\n",
                     "          provide them as a vector instead of a list. For unequal names provide a\n",
                     "          named list. Join will be aborted.")
             return(invisible(NULL))
         }
     }
 
-    # Check if all data frames (except the first) one only have unique value combinations for the 'on' variables
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Check if all data frames (except the first) one only have unique value
+    # combinations for the 'on' variables
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     for (i in seq_along(data_frames)){
         # Check if provided variable names are in the base data frame
         if (!unequal_names){
             if (!all(on %in% names(data_frames[[i]]))){
-                message(" X ERROR: Not all 'on' variables (", paste(on, collapse = ", "), ") appear in data frame ", i, ".\n",
+                message(" X ERROR: Not all <on> variables (", paste(on, collapse = ", "), ") appear in data frame ", i, ".\n",
                         "          Join will be aborted.")
                 return(invisible(NULL))
             }
         }
         else{
             if (!all(on[[i]] %in% names(data_frames[[i]]))){
-                message(" X ERROR: Not all 'on' variables (", paste(on[[i]], collapse = ", "), ") appear in data frame ", i, ".\n",
+                message(" X ERROR: Not all <on> variables (", paste(on[[i]], collapse = ", "), ") appear in data frame ", i, ".\n",
                         "          Join will be aborted.")
                 return(invisible(NULL))
             }
@@ -173,26 +182,31 @@ multi_join <- function(data_frames,
         # On equal names there is just one combination which needs to be checked
         if (!unequal_names){
             # Check for duplicate combinations
-            if (any(duplicated(data_frames[[i]][on]))){
+            if (collapse::any_duplicated(data_frames[[i]][on])){
                 message(" X ERROR: The second and all following data frames need to have unique combinations\n",
-                        "          in the provided 'on' variables. Join will be aborted.")
+                        "          in the provided <on> variables. Join will be aborted.")
                 return(invisible(NULL))
             }
         }
         # On unequal names each individual variable combination has to be checked on the corresponding data frame
         else{
-            if (any(duplicated(data_frames[[i]][on[[i]]]))){
+            if (collapse::any_duplicated(data_frames[[i]][on[[i]]])){
                 message(" X ERROR: The second and all following data frames need to have unique combinations\n",
-                        "          in the provided 'on' variables. Join will be aborted.")
+                        "          in the provided <on> variables. Join will be aborted.")
                 return(invisible(NULL))
             }
         }
     }
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Join methods
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     # Only keep valid join methods
     valid_join_methods <- c("left", "right", "inner", "full", "outer", "left_inner", "right_inner")
-    invalid_how        <- how[!tolower(how) %in% valid_join_methods]
-    how                <- how[tolower(how) %in% valid_join_methods]
+    valid_methods <- tolower(how) %in% valid_join_methods
+    invalid_how   <- how[!valid_methods]
+    how           <- how[valid_methods]
 
     if (length(invalid_how) > 0){
         message(" ! WARNING: The provided join method '", paste(invalid_how, collapse = ", "), "' is not valid.")
@@ -200,9 +214,9 @@ multi_join <- function(data_frames,
 
     # If length of provided joins is lesser than number of data frames minus one
     if (length(how) == 0){
-        how <- "left"
-
         message(" ! WARNING: No valid join method provided, 'left' will be used.")
+
+        how <- "left"
     }
     # If length of provided joins is lesser than number of data frames minus one
     else if (length(how) < length(data_frames) - 1){
@@ -218,7 +232,7 @@ multi_join <- function(data_frames,
         # Cut elements down to number of data frames minus one
         how <- utils::head(how, length(data_frames) - 1)
 
-        message(" ~ NOTE: Too many join methods given in 'how'. Excess methods will remain unused.")
+        message(" ~ NOTE: Too many join methods given in <how>. Excess methods will remain unused.")
     }
 
     ###########################################################################
@@ -229,10 +243,15 @@ multi_join <- function(data_frames,
 
     message("\n > Begin joining.")
 
-    # First perform joins as a full joins. This way all combinations are in the final
-    # data frame. Afterwards the data frame is conditionally filtered.
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # First perform joins as a full joins. This way all combinations are in the
+    # final data frame. Afterwards the data frame is conditionally filtered.
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     for (i in seq_along(data_frames)){
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next(paste0("Join ", i - 1), "Join")
+        #---------------------------------------------------------------------#
 
         # Skip first data frame, because it is not joined on itself
         if (i == 1){
@@ -247,6 +266,10 @@ multi_join <- function(data_frames,
         # Create filter variable which indicates, which data frame provides observations
         data_frames[[i]][[join_keys[[i]]]] <- 1
 
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        # Equality crossroads
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
         # On equal names there is just one combination which can be input directly
         if (!unequal_names){
             joined_df <- collapse::join(joined_df, data_frames[[i]],
@@ -258,7 +281,7 @@ multi_join <- function(data_frames,
         else{
             # Check if the same number of 'on' variables are provided
             if (length(on[[1]]) != length(on[[i]])){
-                message(" X ERROR: Unequal number of 'on' variables provided. ", paste(on[[1]], collapse = ", "), " vs. " , paste(on[[i]], collapse = ", "), ".\n",
+                message(" X ERROR: Unequal number of <on> variables provided. ", paste(on[[1]], collapse = ", "), " vs. " , paste(on[[i]], collapse = ", "), ".\n",
                         "          Join will be aborted.")
                 return(invisible(NULL))
             }
@@ -269,9 +292,14 @@ multi_join <- function(data_frames,
                                         verbose  = FALSE)
         }
 
-        monitor_df <- monitor_df |> monitor_next(paste0("Subset ", i - 1), "Join")
-
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         # Subset data frame according to provided join methods
+        #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+        #---------------------------------------------------------------------#
+        monitor_df <- monitor_df |> monitor_next(paste0("Subset ", i - 1), "Join")
+        #---------------------------------------------------------------------#
+
         if (tolower(how[[i - 1]]) == "left"){
             joined_df <- joined_df |> collapse::fsubset(joined_df[[join_keys[[1]]]] == 1)
         }
@@ -293,15 +321,23 @@ multi_join <- function(data_frames,
 
         # Drop indicator of joined data frame
         if (!keep_indicators){
-            joined_df <- joined_df |> dropp(join_keys[[i]])
+            key_to_drop <- as.character(join_keys[[i]])
+            joined_df   <- joined_df |> dropp(key_to_drop)
         }
     }
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Clean up
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Finish join ", "Join")
+    #-------------------------------------------------------------------------#
 
     # Drop indicator of base data frame
     if (!keep_indicators){
-        joined_df <- joined_df |> dropp(join_keys[[1]])
+        key_to_drop <- as.character(join_keys[[1]])
+        joined_df <- joined_df |> dropp(key_to_drop)
     }
     # If join indicators should stay in the data frame, sort them to the back
     else{
@@ -311,9 +347,10 @@ multi_join <- function(data_frames,
     end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
     message("\n- - - 'multi_join' execution time: ", end_time, " seconds\n")
 
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_end()
     monitor_df |> monitor_plot(draw_plot = monitor)
+    #-------------------------------------------------------------------------#
 
     joined_df
-
 }

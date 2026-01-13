@@ -7,6 +7,7 @@
 build_master(
   dir,
   master_name = "Master",
+  author = "",
   with_structure = TRUE,
   with_run_all = TRUE,
   with_run_folder = TRUE
@@ -16,6 +17,8 @@ build_master(
 \item{dir}{The folder structure which contains the scripts to build upon.}
 
 \item{master_name}{The file name which should be written.}
+
+\item{author}{Authors name to be put in the header.}
 
 \item{with_structure}{Whether the folder structure as tree should be written
 to the master script.}
@@ -60,6 +63,17 @@ root/
 }\if{html}{\out{</div>}}
 }
 \examples{
-build_master(dir = "C:/My Projects/Code", master_name = "Master Script")
+# Example export file paths
+# NOTE: These tempfiles are only for the examples. In reality you just call the
+# main function and put in your desired path and name directly.
+temp_file <- tempfile(fileext = ".rstheme")
+file_name <- basename(tools::file_path_sans_ext(temp_file))
+
+# Example master
+build_master(dir         = dirname(temp_file),
+             master_name = file_name)
+
+# Manual cleanup for example
+unlink(temp_file)
 
 }

@@ -11,7 +11,7 @@
 #' which variable instead of the variable name.
 #' @param workbook Insert a previously created workbook to expand the sheets instead of
 #' creating a new file.
-#' @param style A list of options can be passed to control the appearance of excel outputs.
+#' @param style A list of options can be passed to control the appearance of 'Excel' outputs.
 #' Styles can be created with [excel_output_style()].
 #' @param output The following output formats are available: excel and excel_nostyle.
 #' @param print TRUE by default. If TRUE prints the output, if FALSE doesn't print anything. Can be used
@@ -29,6 +29,8 @@
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [number_format_style()], [modify_number_formats()].
 #'
+#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()].
 #'
 #' @examples
@@ -36,42 +38,87 @@
 #' my_data <- dummy_data(1000)
 #'
 #' # Define style
-#' my_style <- excel_output_style(column_widths = c(2, 15, 15, 15, 9))
+#' set_style_options(column_widths = c(2, 15, 15, 15, 9))
 #'
 #' # Define titles and footnotes. If you want to add hyperlinks you can do so by
 #' # adding "link:" followed by the hyperlink to the main text.
-#' titles <- c("This is title number 1 link: https://cran.r-project.org/",
-#'             "This is title number 2",
-#'             "This is title number 3")
-#' footnotes <- c("This is footnote number 1",
-#'                "This is footnote number 2",
-#'                "This is footnote number 3 link: https://cran.r-project.org/")
+#' set_titles("This is title number 1 link: https://cran.r-project.org/",
+#'            "This is title number 2",
+#'            "This is title number 3")
+#'
+#' set_footnotes("This is footnote number 1",
+#'               "This is footnote number 2",
+#'               "This is footnote number 3 link: https://cran.r-project.org/")
 #'
 #' # Print styled data frame
-#' my_data |> export_with_style(titles    = titles,
-#'                              footnotes = footnotes,
-#'                              style     = my_style)
+#' my_data |> export_with_style()
 #'
 #' # Retrieve formatted workbook for further usage
-#' wb <- my_data |>
-#'     export_with_style(titles    = titles,
-#'                       footnotes = footnotes,
-#'                       style     = my_style)
+#' wb <- my_data |> export_with_style()
+#'
+#' # To save a table as xlsx file you have to set the path and filename in the
+#' # style element
+#' # Example files paths
+#' table_file <- tempfile(fileext = ".xlsx")
+#'
+#' # Note: Normally you would directly input the path ("C:/MyPath/") and name ("MyFile.xlsx").
+#' set_style_options(save_path  = dirname(table_file),
+#'                   file       = basename(table_file),
+#'                   sheet_name = "MyTable")
+#'
+#' my_data |> export_with_style()
+#'
+#' # Manual cleanup for example
+#' unlink(table_file)
+#'
+#' # Global options are permanently active until the current R session is closed.
+#' # There are also functions to reset the values manually.
+#' reset_style_options()
+#' reset_qol_options()
+#' close_file()
 #'
 #' @export
 export_with_style <- function(data_frame,
-                              titles     = c(),
-                              footnotes  = c(),
-                              var_labels = list(),
+                              titles     = .qol_options[["titles"]],
+                              footnotes  = .qol_options[["footnotes"]],
+                              var_labels = .qol_options[["var_labels"]],
                               workbook   = NULL,
-                              style      = excel_output_style(),
-                              output     = "excel",
-                              print      = TRUE,
-                              monitor    = FALSE){
+                              style      = .qol_options[["excel_style"]],
+                              output     = .qol_options[["output"]],
+                              print      = .qol_options[["print"]],
+                              monitor    = .qol_options[["monitor"]]){
     start_time <- Sys.time()
 
+    #-------------------------------------------------------------------------#
+    monitor_df <- NULL |> monitor_start("Error handling", "Error handling")
+    #-------------------------------------------------------------------------#
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Output
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    # Silent conversion of global options, which are invalid for any_table
+    if (tolower(output) %in% c("console", "text")){
+        output <- "excel"
+    }
+
+    # Check for invalid output option
+    if (!tolower(output) %in% c("excel", "excel_nostyle")){
+        message(" ! WARNING: <Output> format '", output, "' not available. Using 'excel' instead.")
+
+        output <- "excel"
+    }
+    else{
+        output <- tolower(output)
+    }
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Prepare table format for output
-    monitor_df <- NULL |> monitor_start("Excel prepare", "Format")
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    #-------------------------------------------------------------------------#
+    monitor_df <- monitor_df |> monitor_next("Excel prepare", "Format")
+    #-------------------------------------------------------------------------#
 
     # Setup styling in new workbook if no other is provided
     if (is.null(workbook)){
@@ -93,25 +140,45 @@ export_with_style <- function(data_frame,
     wb         <- wb_list[[1]]
     monitor_df <- wb_list[[2]]
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Output formatted table into different formats
-    if (print){
-        monitor_df <- monitor_df |> monitor_next("Output tables", "Output tables")
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-        if (is.null(style[["file"]])){
-            if(interactive()){
+    if (print){
+        #---------------------------------------------------------------------#
+        monitor_df <- monitor_df |> monitor_next("Output tables", "Output tables")
+        #---------------------------------------------------------------------#
+        message(" > Output")
+
+        # If no save path or file provided just open workbook
+        if (is.null(style[["save_path"]]) || is.null(style[["file"]])){
+            if (interactive()){
                 wb$open()
             }
         }
         else{
-            wb$save(file = style[["file"]], overwrite = TRUE)
+            # If no save path or file provided just open workbook
+            if (!file.exists(style[["save_path"]])){
+                message(" ! WARNING: Path does not exist: ", style[["save_path"]])
+
+                if (interactive()){
+                    wb$open()
+                }
+            }
+            # Save file
+            else{
+                wb$save(file = paste0(style[["save_path"]], "/", style[["file"]]), overwrite = TRUE)
+            }
         }
     }
 
     end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
     message("\n- - - 'export_with_style' execution time: ", end_time, " seconds\n")
 
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_end()
     monitor_df |> monitor_plot(draw_plot = monitor)
+    #-------------------------------------------------------------------------#
 
     invisible(wb)
 }
@@ -149,7 +216,14 @@ format_df_excel <- function(wb,
                             style,
                             output,
                             monitor_df){
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Add data
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_start("Excel prepare", "Format")
+    #-------------------------------------------------------------------------#
 
     # Get table ranges
     df_ranges <- get_df_ranges(data_frame, titles, footnotes, style)
@@ -160,7 +234,10 @@ format_df_excel <- function(wb,
     wb$add_worksheet(style[["sheet_name"]], grid_lines = style[["grid_lines"]])
 
     # Add table data and format according to style options
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Excel data", "Format")
+    #-------------------------------------------------------------------------#
+    message(" > Writing data to workbook")
 
     wb$add_data(x           = data_frame,
                 start_col   = style[["start_column"]],
@@ -169,8 +246,16 @@ format_df_excel <- function(wb,
                 with_filter = style[["filters"]],
                 na.strings  = style[["na_symbol"]])
 
-    # Format titles and footnotes if there are any
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Apply style
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Excel titles/footnotes", "Format")
+    #-------------------------------------------------------------------------#
+    message(" > Formatting data")
+
+    # Format titles and footnotes if there are any
     wb <- wb |>
         format_titles_foot_excel(titles, footnotes, df_ranges, style, output)
 
@@ -179,11 +264,15 @@ format_df_excel <- function(wb,
     # excel output.
     if (output == "excel"){
         # Style table
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Excel cell styles", "Format")
+        #---------------------------------------------------------------------#
         wb <- wb |> handle_cell_styles(df_ranges, style)
 
         if (df_ranges[["num_format.length"]] > 0){
+            #-----------------------------------------------------------------#
             monitor_df <- monitor_df |> monitor_next("Excel number formats", "Format")
+            #-----------------------------------------------------------------#
 
             # Set up inner table number formats
             for (i in 1:df_ranges[["num_format.length"]]){
@@ -191,6 +280,19 @@ format_df_excel <- function(wb,
                                   apply_number_format = TRUE,
                                   num_fmt_id          = wb$styles_mgr$get_numfmt_id(paste0(df_ranges[[paste0("df_col_types", i)]], "_numfmt")))
             }
+        }
+
+        # Draw inner table cells as heat map with conditional formatting
+        if (style[["as_heatmap"]]){
+            #-----------------------------------------------------------------#
+            monitor_df <- monitor_df |> monitor_next("Excel format heatmap", "Format")
+            #-----------------------------------------------------------------#
+
+            wb$add_conditional_formatting(dims  = df_ranges[["table_range"]],
+                                          style = c(style[["heatmap_low_color"]],
+                                                    style[["heatmap_middle_color"]],
+                                                    style[["heatmap_high_color"]]),
+                                          type  = "colorScale")
         }
 
         # Freeze headers. If both options are true they have to be set together, otherwise one
@@ -207,11 +309,13 @@ format_df_excel <- function(wb,
         }
 
         # Adjust table dimensions
+        #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Excel widths/heights", "Format")
+        #---------------------------------------------------------------------#
 
         wb <- wb |> handle_col_row_dimensions(df_ranges,
-                                              ncol(data_frame) + (style[["start_column"]] - 1),
-                                              nrow(data_frame) + (style[["start_row"]] - 1),
+                                              collapse::fncol(data_frame) + (style[["start_column"]] - 1),
+                                              collapse::fnrow(data_frame) + (style[["start_row"]] - 1),
                                               style) |>
             handle_any_auto_dimensions(df_ranges, style) |>
             handle_header_table_dim(df_ranges, style)

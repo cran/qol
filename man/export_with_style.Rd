@@ -6,14 +6,14 @@
 \usage{
 export_with_style(
   data_frame,
-  titles = c(),
-  footnotes = c(),
-  var_labels = list(),
+  titles = .qol_options[["titles"]],
+  footnotes = .qol_options[["footnotes"]],
+  var_labels = .qol_options[["var_labels"]],
   workbook = NULL,
-  style = excel_output_style(),
-  output = "excel",
-  print = TRUE,
-  monitor = FALSE
+  style = .qol_options[["excel_style"]],
+  output = .qol_options[["output"]],
+  print = .qol_options[["print"]],
+  monitor = .qol_options[["monitor"]]
 )
 }
 \arguments{
@@ -29,7 +29,7 @@ which variable instead of the variable name.}
 \item{workbook}{Insert a previously created workbook to expand the sheets instead of
 creating a new file.}
 
-\item{style}{A list of options can be passed to control the appearance of excel outputs.
+\item{style}{A list of options can be passed to control the appearance of 'Excel' outputs.
 Styles can be created with \code{\link[=excel_output_style]{excel_output_style()}}.}
 
 \item{output}{The following output formats are available: excel and excel_nostyle.}
@@ -55,32 +55,51 @@ as is into a styled table.
 my_data <- dummy_data(1000)
 
 # Define style
-my_style <- excel_output_style(column_widths = c(2, 15, 15, 15, 9))
+set_style_options(column_widths = c(2, 15, 15, 15, 9))
 
 # Define titles and footnotes. If you want to add hyperlinks you can do so by
 # adding "link:" followed by the hyperlink to the main text.
-titles <- c("This is title number 1 link: https://cran.r-project.org/",
-            "This is title number 2",
-            "This is title number 3")
-footnotes <- c("This is footnote number 1",
-               "This is footnote number 2",
-               "This is footnote number 3 link: https://cran.r-project.org/")
+set_titles("This is title number 1 link: https://cran.r-project.org/",
+           "This is title number 2",
+           "This is title number 3")
+
+set_footnotes("This is footnote number 1",
+              "This is footnote number 2",
+              "This is footnote number 3 link: https://cran.r-project.org/")
 
 # Print styled data frame
-my_data |> export_with_style(titles    = titles,
-                             footnotes = footnotes,
-                             style     = my_style)
+my_data |> export_with_style()
 
 # Retrieve formatted workbook for further usage
-wb <- my_data |>
-    export_with_style(titles    = titles,
-                      footnotes = footnotes,
-                      style     = my_style)
+wb <- my_data |> export_with_style()
+
+# To save a table as xlsx file you have to set the path and filename in the
+# style element
+# Example files paths
+table_file <- tempfile(fileext = ".xlsx")
+
+# Note: Normally you would directly input the path ("C:/MyPath/") and name ("MyFile.xlsx").
+set_style_options(save_path  = dirname(table_file),
+                  file       = basename(table_file),
+                  sheet_name = "MyTable")
+
+my_data |> export_with_style()
+
+# Manual cleanup for example
+unlink(table_file)
+
+# Global options are permanently active until the current R session is closed.
+# There are also functions to reset the values manually.
+reset_style_options()
+reset_qol_options()
+close_file()
 
 }
 \seealso{
 Creating a custom table style: \code{\link[=excel_output_style]{excel_output_style()}}, \code{\link[=modify_output_style]{modify_output_style()}},
 \code{\link[=number_format_style]{number_format_style()}}, \code{\link[=modify_number_formats]{modify_number_formats()}}.
+
+Global style options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=set_variable_labels]{set_variable_labels()}}, \code{\link[=set_stat_labels]{set_stat_labels()}}.
 
 Functions that can handle styles: \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}}, \code{\link[=any_table]{any_table()}}.
 }

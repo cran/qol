@@ -5,6 +5,8 @@
 # but without drawing the whole outputs on screen.
 ###############################################################################
 
+set_style_options(as_heatmap = TRUE)
+
 dummy_df <- suppressMessages(dummy_data(1000))
 
 
@@ -59,7 +61,7 @@ test_that("crosstabs not allowed with multiple row variables", {
     expect_message(result_df <- dummy_df |>
         crosstabs(rows    = c(age, state),
                   columns = sex,
-                  print   = FALSE), " X ERROR: Only one variable for rows allowed. Crosstabs will be aborted.")
+                  print   = FALSE), " X ERROR: Only one variable for <rows> allowed. Crosstabs will be aborted.")
 })
 
 
@@ -67,7 +69,7 @@ test_that("crosstabs not allowed with multiple column variables", {
     expect_message(result_df <- dummy_df |>
          crosstabs(rows    = sex,
                    columns = c(age, state),
-                   print   = FALSE), " X ERROR: Only one variable for columns allowed. Crosstabs will be aborted.")
+                   print   = FALSE), " X ERROR: Only one variable for <columns> allowed. Crosstabs will be aborted.")
 })
 
 
@@ -100,7 +102,7 @@ test_that("crosstabs where by is also part of rows or columns is aborted", {
            crosstabs(rows    = age,
                      columns = sex,
                      by      = c(sex, year),
-                     print   = FALSE), " X ERROR: The provided by variable 'sex' is also part of")
+                     print   = FALSE), " ! WARNING: The provided <by> variable '")
 })
 
 
@@ -374,5 +376,23 @@ test_that("Invalid output format leads to console output", {
                      by      = education,
                      output  = "test",
                      print   = FALSE),
-       " ! WARNING: Output format 'test' not available. Using 'console' instead.")
+       " ! WARNING: <Output> format 'test' not available. Using 'console' instead.")
 })
+
+
+test_that("Save crosstabs as Excel file", {
+    temp_file <- tempfile(fileext = ".xlsx")
+    on.exit(unlink(temp_file), add = TRUE)
+
+    suppressMessages(dummy_df |>
+         crosstabs(rows    = age,
+                   columns = sex,
+                   output  = "excel",
+                   style   = excel_output_style(save_path = dirname(temp_file),
+                                                file      = basename(temp_file))))
+
+    expect_true(file.exists(temp_file))
+})
+
+
+set_style_options(as_heatmap = FALSE)

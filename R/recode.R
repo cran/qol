@@ -77,6 +77,10 @@ recode <- function(data_frame,
     # Measure the time
     start_time <- Sys.time()
 
+    ###########################################################################
+    # Early evaluations
+    ###########################################################################
+
     # Convert to character
     new_var <- gsub("\"", "", deparse(substitute(new_var)))
 
@@ -86,24 +90,16 @@ recode <- function(data_frame,
     }
 
     # Translate ... into separately controllable arguments
-    formats_list <- list(...)
+    formats <- list(...)
 
-    # Evaluate formats early, otherwise apply formats can't evaluate them in unit
-    # test situation.
-    formats <- stats::setNames(
-        lapply(formats_list, function(expression){
-            # Catch expression if passed as string
-            if (is.character(expression)) {
-                tryCatch(get(expression, envir = parent.frame()),
-                         error = function(e) NULL)
-            }
-            # Catch expression if passed as symbol
-            else{
-                tryCatch(eval(expression, envir = parent.frame()),
-                         error = function(e) NULL)
-            }
-        }),
-        names(formats_list))
+    # Evaluate formats early
+    if (!is_list_of_dfs(formats)){
+        formats <- evaluate_formats(formats)
+    }
+
+    ###########################################################################
+    # Error handling
+    ###########################################################################
 
     # Get information from ... list
     current_var <- names(formats)[1]
@@ -119,7 +115,7 @@ recode <- function(data_frame,
         return(data_frame)
     }
 
-    if (names(format_df)[1] == "value" && any(duplicated(format_df[["value"]]))){
+    if (names(format_df)[1] == "value" && collapse::any_duplicated(format_df[["value"]])){
         message(" ! WARNING: The format for '", current_var, "' is a multilabel. A multilabel can't be fully applied in recode.\n",
                 "            Only one of the matching categories will be applied.")
 
@@ -131,12 +127,19 @@ recode <- function(data_frame,
                 "         are specified as input values and not the factor levels.")
     }
 
+    ###########################################################################
+    # Recode
+    ###########################################################################
+
     # Look up variable names in format data frame to check whether it is an
     # interval or discrete format
     interval_variables <- c("from", "to")
     actual_variables   <- names(format_df)[1:2]
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # In case of interval format
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     if (identical(interval_variables, actual_variables)){
         # Remove NA values
         if (any(is.na(data_frame[[current_var]]))){
@@ -148,16 +151,16 @@ recode <- function(data_frame,
             collapse::fsubset(!is.na(data_frame[[current_var]]))
 
         # Get number of rows from data frame to compare after the merge to check for multilabel
-        original_rows <- nrow(data_frame)
+        original_rows <- collapse::fnrow(data_frame)
 
         # Generate pseudo variables for range merging
         data_frame[["qol_from"]] <- data_frame[[as.character(current_var)]]
         data_frame[["qol_to"]]   <- data_frame[[as.character(current_var)]]
 
-        data_frame[["qol_ID"]] <- seq_len(nrow(data_frame))
+        data_frame[["qol_ID"]] <- seq_len(collapse::fnrow(data_frame))
 
         # Set key variables
-        temp_dt <- data.table::as.data.table(data_frame)
+        temp_dt   <- data.table::as.data.table(data_frame)
         format_dt <- data.table::copy(format_df)
 
         data.table::setkey(temp_dt, qol_from, qol_to)
@@ -175,12 +178,16 @@ recode <- function(data_frame,
         data_frame <- data_frame |>
             data.table::setcolorder(new_var, after = ncol(data_frame))
 
-        if (nrow(data_frame) > original_rows){
+        if (collapse::fnrow(data_frame) > original_rows){
             message(" ! WARNING: The format for '", current_var, "' is a multilabel. For interval formats this leads to\n",
                     "            doubling observations.")
         }
     }
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # In case of discrete format
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
     else{
         # Rename label column to be specific to the variable
         format_df <- format_df |>
@@ -209,25 +216,25 @@ recode_multi <- function(data_frame, ...){
     # Measure the time
     start_time <- Sys.time()
 
-    # Translate ... into separately controllable arguments
-    formats_list <- list(...)
+    # Translate ... into a list if possible
+    formats <- tryCatch({
+        # Force evaluation to see if it exists
+        list(...)
+    }, error = function(e) {
+        # Evaluation failed
+        NULL
+    })
 
-    # Evaluate formats early, otherwise apply formats can't evaluate them in unit
-    # test situation.
-    formats <- stats::setNames(
-        lapply(formats_list, function(expression){
-            # Catch expression if passed as string
-            if (is.character(expression)) {
-                tryCatch(get(expression, envir = parent.frame()),
-                         error = function(e) NULL)
-            }
-            # Catch expression if passed as symbol
-            else{
-                tryCatch(eval(expression, envir = parent.frame()),
-                         error = function(e) NULL)
-            }
-        }),
-        names(formats_list))
+    if (is.null(formats)){
+        message('X ERROR: Unknown object found. Provide recode arguments in the form: variable_name = format_df.\n",
+                "         Recoding will be aborted.')
+        return(data_frame)
+    }
+
+    # Evaluate formats early
+    if (!is_list_of_dfs(formats)){
+        formats <- evaluate_formats(formats)
+    }
 
     # Get information from ... list
     variables <- names(formats)
@@ -238,7 +245,7 @@ recode_multi <- function(data_frame, ...){
         data.table::setcolorder(var_order)
 
     end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
-    message("- - - 'recode' execution time: ", end_time, " seconds")
+    message("- - - 'recode_multi' execution time: ", end_time, " seconds")
 
     data_frame
 }
