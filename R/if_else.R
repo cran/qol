@@ -63,34 +63,43 @@ NULL
 #' @rdname if_else
 #'
 #' @export
-if. <- function(data_frame, condition, ...) {
+if. <- function(data_frame, condition, ...){
     condition   <- eval(substitute(condition), envir = data_frame, enclos = parent.frame())
     assignments <- as.list(substitute(list(...)))[-1]
 
     if (length(assignments) > 0){
         # Go trough each assignment and calculate the values individually
         for (variable in names(assignments)){
+            # This step is important to make this function work in a nested situation.
+            # Normally variable would be the name of what was last passed as a parameter.
+            # If "if.()" is used nested inside a function this can basically be any placeholder.
+            # So here we go up the ladder to get the original name of the variable.
+            original_var <- get_origin_symbol(variable)
+
             # Evaluate complete assignment first without condition
             value <- eval(assignments[[variable]], envir = data_frame, enclos = parent.frame())
 
             # If there already is a variable with the given name pick the existing value as fallback
-            if (variable %in% names(data_frame)){
+            if (original_var %in% names(data_frame)){
                 # Check if existing variable type is of same type as assigned value.
                 # Put out a warning on type mismatch.
-                if (check_types(data_frame, variable, value)){
-                    data_frame[[variable]] <- as.character(data_frame[[variable]])
+                if (check_types(data_frame, original_var, value)){
+                    data_frame[[original_var]] <- as.character(data_frame[[original_var]])
                     value <- as.character(value)
                 }
 
-                data_frame <- generate_new_var(data_frame, condition, variable, value)
+                data_frame <- generate_new_var(data_frame, condition, original_var, value)
             }
             # If there is not an existing variable pass NA as fallback
             else{
-                data_frame <- generate_new_var(data_frame, condition, variable, value)
+                data_frame <- generate_new_var(data_frame, condition, original_var, value)
             }
         }
     }
     else{
+        # Remember rows to tell the user how many rows have been removed
+        rows_before <- data_frame |> collapse::fnrow()
+
         # Evaluate normal condition
         if (is.logical(condition)){
             data_frame <- data_frame |> collapse::fsubset(condition)
@@ -118,6 +127,17 @@ if. <- function(data_frame, condition, ...) {
                 data_frame <- data_frame |> collapse::fsubset(!is.na(condition))
             }
         }
+
+        # Output info message
+        rows_after <- data_frame |> collapse::fnrow()
+
+        message("\n- - - 'if.' removed ",
+                format(rows_before - rows_after,
+                       format = "d", decimal.mark = ",", big.mark = ".", scientific = FALSE),
+                " observations. Data frame now has ",
+                format(rows_after,
+                       format = "d", decimal.mark = ",", big.mark = ".", scientific = FALSE),
+                " observations.")
     }
 
     data_frame
@@ -137,8 +157,14 @@ else_if. <- function(data_frame, condition, ...){
 
     # Go trough each assignment and calculate the values individually
     for (variable in names(assignments)){
+        # This step is important to make this function work in a nested situation.
+        # Normally variable would be the name of what was last passed as a parameter.
+        # If "if.()" is used nested inside a function this can basically be any placeholder.
+        # So here we go up the ladder to get the original name of the variable.
+        original_var <- get_origin_symbol(variable)
+
         # Variable has to exist in data frame
-        if (!variable %in% names(data_frame)){
+        if (!original_var %in% names(data_frame)){
             next
         }
 
@@ -147,12 +173,12 @@ else_if. <- function(data_frame, condition, ...){
 
         # Check if existing variable type is of same type as assigned value.
         # Put out a warning on type mismatch.
-        if (check_types(data_frame, variable, value)){
-            data_frame[[variable]] <- as.character(data_frame[[variable]])
+        if (check_types(data_frame, original_var, value)){
+            data_frame[[original_var]] <- as.character(data_frame[[original_var]])
             value <- as.character(value)
         }
 
-        data_frame <- generate_new_var(data_frame, is.na(data_frame[[variable]]) & condition, variable, value)
+        data_frame <- generate_new_var(data_frame, is.na(data_frame[[original_var]]) & condition, original_var, value)
     }
 
     data_frame
@@ -171,8 +197,14 @@ else. <- function(data_frame, ...){
 
     # Go trough each assignment and calculate the values individually
     for (variable in names(assignments)){
+        # This step is important to make this function work in a nested situation.
+        # Normally variable would be the name of what was last passed as a parameter.
+        # If "if.()" is used nested inside a function this can basically be any placeholder.
+        # So here we go up the ladder to get the original name of the variable.
+        original_var <- get_origin_symbol(variable)
+
         # Variable has to exist in data frame
-        if (!variable %in% names(data_frame)){
+        if (!original_var %in% names(data_frame)){
             next
         }
 
@@ -181,12 +213,12 @@ else. <- function(data_frame, ...){
 
         # Check if existing variable type is of same type as assigned value.
         # Put out a warning on type mismatch.
-        if (check_types(data_frame, variable, value)){
-            data_frame[[variable]] <- as.character(data_frame[[variable]])
+        if (check_types(data_frame, original_var, value)){
+            data_frame[[original_var]] <- as.character(data_frame[[original_var]])
             value <- as.character(value)
         }
 
-        data_frame <- generate_new_var(data_frame, is.na(data_frame[[variable]]), variable, value)
+        data_frame <- generate_new_var(data_frame, is.na(data_frame[[original_var]]), original_var, value)
     }
 
     data_frame
@@ -252,4 +284,45 @@ generate_new_var <- function(data_frame, condition, variable, value){
     }
 
     data_frame
+}
+
+
+
+#' Filter Data Frame With Direct View
+#'
+#' @description
+#' Filter observations and variables and directly view the result on screen.
+#'
+#' @param data_frame A data frame on which to apply filters.
+#' @param condition The condition on which to filter observations.
+#' @param keep The Variables to keep in the result data frame.
+#'
+#' @return Returns a filtered data frame.
+#'
+#' @examples
+#' # Example data frame
+#' my_data <- dummy_data(1000)
+#'
+#' # G         et a quick filtered view
+#' my_data |> where.(sex == 1 & age < 25,
+#'                   c(sex, age, household_id, education))
+#'
+#' @export
+where. <- function(data_frame, condition = NULL, keep = NULL){
+    condition <- eval(substitute(condition), envir = data_frame, enclos = parent.frame())
+    keep      <- get_origin_as_char(keep, substitute(keep))
+
+    if (!is.null(condition)){
+        data_frame <- data_frame |> if.(condition)
+    }
+
+    if (!is.null(keep)){
+        data_frame <- data_frame |> keep(keep, order_vars = TRUE)
+    }
+
+    if (interactive()){
+        data_frame |> utils::View()
+    }
+
+    invisible(data_frame)
 }

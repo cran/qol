@@ -42,6 +42,9 @@
 #' @param merge_back Newly summarised variables can be merged back to the original
 #' data frame if TRUE. Only works if nested = "deepest and no formats are defined.
 #' @param na.rm FALSE by default. If TRUE removes all NA values from the class variables.
+#' @param print_miss FALSE by default. If TRUE outputs all possible categories of the
+#' grouping variables based on the provided formats, even if there are no observations
+#' for a combination.
 #' @param monitor FALSE by default. If TRUE, outputs two charts to visualize the
 #' functions time consumption.
 #' @param notes TRUE by default. Prints notifications about NA values produced by
@@ -160,6 +163,7 @@ summarise_plus <- function(data_frame,
                            nesting    = "deepest",
                            merge_back = FALSE,
                            na.rm      = .qol_options[["na.rm"]],
+                           print_miss = .qol_options[["print_miss"]],
                            monitor    = .qol_options[["monitor"]],
                            notes      = TRUE){
     # Measure the time
@@ -242,11 +246,13 @@ summarise_plus <- function(data_frame,
     # Statistics
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+    statistics <- get_origin_as_char(statistics, substitute(statistics))
+    statistics <- tolower(statistics)
+
     list_of_statistics <- get_complete_statistics_list(statistics)
 
     # Get the intersection of the requested statistics to make sure
     # only valid actions are passed down
-    statistics     <- tolower(statistics)
     requested      <- collapse::funique(unlist(list(statistics)))
     valid_stats    <- requested[requested %in% names(list_of_statistics)]
     selected_stats <- list_of_statistics[valid_stats]
@@ -317,6 +323,9 @@ summarise_plus <- function(data_frame,
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Types
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    # Enable the use of macro variables
+    types <- apply_macro(types)
 
     # Get row variables from provided combinations
     type_vars <- unlist_variables(types)
@@ -553,10 +562,14 @@ summarise_plus <- function(data_frame,
             result_df <- original_df |>
                 collapse::fungroup() |>
                 collapse::join(result_df,
-                               on = group_vars,
-                               how = "left",
+                               on      = group_vars,
+                               how     = "left",
                                verbose = FALSE) |>
                 dropp(".temp_weight")
+        }
+        # If formats are applied and all format categories schould be output
+        else if (print_miss && !is.null(formats)){
+            result_df <- result_df |> print_missing(formats, group_vars)
         }
 
         #---------------------------------------------------------------------#
@@ -742,7 +755,11 @@ summarise_plus <- function(data_frame,
                     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
                     if (flag_shortcut){
-                        group_df <- data_frame |> apply_format(formats, combination)
+                        # Final summarise with formatted data frame
+                        group_df <- data_frame |>
+                            collapse::fgroup_by(combination) |>
+                            collapse::fsummarise(across(values, collapse::fsum)) |>
+                            apply_format(formats, combination)
 
                         # Final summarise with formatted data frame
                         group_df <- group_df |>
@@ -757,8 +774,9 @@ summarise_plus <- function(data_frame,
                     }
                     else{
                         # Apply formats first
-                        group_df <- data_frame |> collapse::fselect(combination, values, weight_var)
-                        group_df <- group_df |> apply_format(formats, combination)
+                        group_df <- data_frame |>
+                            collapse::fselect(combination, values, weight_var) |>
+                            apply_format(formats, combination)
 
                         monitor_df <- monitor_df |> monitor_end()
 
@@ -890,6 +908,11 @@ summarise_plus <- function(data_frame,
                     group_df[["TYPE_NR"]] <- as.integer(index)
                     group_df[["DEPTH"]]   <- as.integer(i)
 
+                    # If formats are applied and all format categories schould be output
+                    if (print_miss && !is.null(formats)){
+                        group_df <- group_df |> print_missing(formats, combination)
+                    }
+
                     # Add data frame to list to add them together at the end
                     all_results[[type]] <- group_df
 
@@ -952,19 +975,19 @@ summarise_plus <- function(data_frame,
 ###############################################################################
 # List of all possible actions
 ###############################################################################
-static_statistics <- list(sum = collapse::fsum,
-                          freq = function(x, w, g) collapse::fnobs(x, g = g),
-                          freq_g0 = function(x, w, g) freq_g0_qol(x, group = g),
-                          mean = collapse::fmean,
-                          median = collapse::fmedian,
-                          mode = collapse::fmode,
-                          min = function(x, w, g) collapse::fmin(x, g = g),
-                          max = function(x, w, g) collapse::fmax(x, g = g),
-                          sd = collapse::fsd,
+static_statistics <- list(sum      = collapse::fsum,
+                          freq     = function(x, w, g) collapse::fnobs(x, g = g),
+                          freq_g0  = function(x, w, g) freq_g0_qol(x, group = g),
+                          mean     = collapse::fmean,
+                          median   = collapse::fmedian,
+                          mode     = collapse::fmode,
+                          min      = function(x, w, g) collapse::fmin(x, g = g),
+                          max      = function(x, w, g) collapse::fmax(x, g = g),
+                          sd       = collapse::fsd,
                           variance = collapse::fvar,
-                          first = function(x, w, g) collapse::ffirst(x, g = g),
-                          last = function(x, w, g) collapse::flast(x, g = g),
-                          missing = function(x, w, g) collapse::fsum(is.na(x), g = g))
+                          first    = function(x, w, g) collapse::ffirst(x, g = g),
+                          last     = function(x, w, g) collapse::flast(x, g = g),
+                          missing  = function(x, w, g) collapse::fsum(is.na(x), g = g))
 
 
 #' Compute Percentile Functions
@@ -981,9 +1004,9 @@ static_statistics <- list(sum = collapse::fsum,
 get_complete_statistics_list <- function(statistics){
     all_stats <- static_statistics
 
-    for (stat_name in statistics) {
+    for (stat_name in statistics){
         # Match pattern p<number>
-        if (grepl("^p\\d+$", stat_name)) {
+        if (grepl("^p\\d+$", stat_name)){
             prob <- as.numeric(sub("^p", "", stat_name)) / 100
 
             if (prob > 1){
@@ -992,7 +1015,7 @@ get_complete_statistics_list <- function(statistics){
             }
 
             # Define the function
-            all_stats[[stat_name]] <- (function(prob) {
+            all_stats[[stat_name]] <- (function(prob){
                 force(prob)
                 function(x, w = NULL, g = NULL) {
                     percentiles_qol(x, w, g, probs = prob)
@@ -1045,12 +1068,18 @@ matrix_summarise <- function(data_frame,
     monitor_df <- monitor_df |> monitor_start("Matrix conversion", paste0("Calc(", paste(group_vars, collapse = " + "), ")"))
     #-------------------------------------------------------------------------#
 
+    # Store original types of grouping variables to later reapply them.
+    original_types <- lapply(data_frame[group_vars], class)
+
     # Temporarily rename "." in factor variable levels, if there are any. This is
     # necessary because later the matrix row names need to be split by ".". If there
     # are any additional dots in the level names, this leads to errors.
     for (column in names(data_frame[, group_vars])){
         if (is.factor(data_frame[[column]])){
             levels(data_frame[[column]]) <- gsub("\\.", "!!!", levels(data_frame[[column]]))
+        }
+        else if(is.character(data_frame[[column]])){
+            data_frame[[column]] <- gsub("\\.", "!!!", data_frame[[column]])
         }
     }
 
@@ -1130,7 +1159,7 @@ matrix_summarise <- function(data_frame,
     # Restore temporarily renamed dots
     for (column in names(restored_group)){
         if (is.character(restored_group[[column]])){
-            restored_group[[column]] <- gsub("\\.", "!!!", restored_group[[column]])
+            restored_group[[column]] <- gsub("!!!", ".", restored_group[[column]])
         }
     }
 
@@ -1172,6 +1201,25 @@ matrix_summarise <- function(data_frame,
         # Case where there are no grouping variables
         result_df <- cbind(sum_wgt, sum_result,
               do.call(cbind, result_list))
+    }
+
+    # Restore original variable types of numeric variables
+    for (variable in names(original_types)){
+        var_type <- original_types[[variable]]
+
+        if (length(var_type) > 1){
+            next
+        }
+
+        if (var_type == "integer"){
+            result_df[[variable]] <- as.integer(result_df[[variable]])
+        }
+        else if (var_type == "double"){
+            result_df[[variable]] <- as.double(result_df[[variable]])
+        }
+        else if (var_type == "numeric"){
+            result_df[[variable]] <- as.numeric(result_df[[variable]])
+        }
     }
 
     monitor_df <- monitor_df |> monitor_end()
@@ -1245,4 +1293,106 @@ reorder_summarised_columns <- function(data_frame, requested_stats){
 
     # Put the ordered columns at the end of the data frame
     data_frame |> data.table::setcolorder(ordered_cols, after = collapse::fncol(data_frame))
+}
+
+###############################################################################
+# Handle what happens with missing categories, if they appear in a format
+###############################################################################
+#' Output Missing Values If They Are Present In A Format
+#'
+#' @description
+#' Sometimes it can be handy to not only output all categories which are present
+#' in a data frame but also additionally all categories which could have been
+#' potentialy present. A format can provide more categories which are NA in the
+#' data frame, this functions outputs them as NA rows.
+#'
+#' @param data_frame The result data frame which contains all formatte variables.
+#' @param formats The provided formats.
+#' @param group_vars All grouping variables.
+#'
+#' @return
+#' Returns a data frame with added missing categories.
+#'
+#' @noRd
+print_missing <- function(data_frame,
+                          formats,
+                          group_vars){
+    format_list <- formats
+
+    # First check if given variables to format are part of the data frame. This only
+    # can be the case if "formats" is provided but the variables are missing in the
+    # "class" parameter. In this case abort, because there shouldn't be extra categories,
+    # which shouldn't be there in the first place.
+    format_names <- names(formats)
+    format_vars  <- group_vars[group_vars %in% format_names]
+
+    if (length(format_vars) == 0){
+        return(data_frame)
+    }
+
+    # Determine which variables are actually formatted in the data frame and which
+    # have to be added unformatted.
+    no_format_vars <- group_vars[!group_vars %in% format_names]
+
+    # Make sure only variables stay in the format list which are part of the group variables.
+    # There is a missmatch, when generating all combinations. Some combinations have lesser
+    # grouping variables than formats are provided.
+    format_select <- group_vars
+
+    if (length(no_format_vars) > 0){
+        format_select <- format_select[!group_vars %in% no_format_vars]
+    }
+
+    format_list <- format_list[format_select]
+
+    # Normally I would check if there are missing categories at all and if not abort.
+    # I think this has no benefit here and only costs time, since I am only using this
+    # function as intended. I leave this comment here, to know what is missing, if a
+    # case comes up for which this check would be neccessary.
+
+    # Every unformatted variable is put into a list as single data frame with only
+    # its unique values. Only if unformatted variables are present.
+    if (length(no_format_vars) > 0){
+        no_format_list <- lapply(data_frame |> keep(no_format_vars),
+                                 function(variable){
+                                     no_format_df        <- data.table::as.data.table(collapse::funique(variable))
+                                     names(no_format_df) <- "label"
+
+                                     no_format_df
+                                 })
+
+        format_list <- c(format_list, no_format_list)
+    }
+
+    # Create the cartesian product of all given formats to generate all possible
+    # categories.
+    format_df <- suppressMessages(expand_formats(format_list)) |>
+        data.table::setcolorder(group_vars) |>
+        data.table::setorderv(group_vars)
+
+    # Generate pseudo variable to join
+    format_df[[".pseudo_join"]] <- 1
+
+    # Get values from automatically generated variables to add them back for NA
+    # values after the join
+    type_value    <- data_frame[1, "TYPE"]
+    type_nr_value <- data_frame[1, "TYPE_NR"]
+    depth_value   <- data_frame[1, "DEPTH"]
+
+    # Perform left join on all format categories, so that each possible category
+    # appears in the final data frame. Additionally take over the values from the
+    data_frame <- suppressMessages(
+        collapse::join(format_df, data_frame,
+                       on       = group_vars,
+                       how      = "left",
+                       multiple = TRUE,
+                       verbose  = FALSE) |>
+            dropp(".pseudo_join"))
+
+    # Re apply automatically generated variables to get rid of NA values
+    data_frame[["TYPE"]]    <- type_value
+    data_frame[["TYPE_NR"]] <- type_nr_value
+    data_frame[["DEPTH"]]   <- depth_value
+
+    data_frame
 }

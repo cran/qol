@@ -33,7 +33,7 @@ data.table, collapse, openxlsx2
 
 \section{Functions}{
 
-Creating formats: \code{\link[=discrete_format]{discrete_format()}}, \code{\link[=interval_format]{interval_format()}}
+Creating formats: \code{\link[=discrete_format]{discrete_format()}}, \code{\link[=interval_format]{interval_format()}}, \code{\link[=expand_formats]{expand_formats()}}
 
 Summarisation and tabulation: \code{\link[=summarise_plus]{summarise_plus()}}, \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}}, \code{\link[=any_table]{any_table()}}, \code{\link[=export_with_style]{export_with_style()}}, \code{\link[=combine_into_workbook]{combine_into_workbook()}}
 
@@ -50,7 +50,7 @@ Transposing: \code{\link[=transpose_plus]{transpose_plus()}}
 
 Sorting: \code{\link[=sort_plus]{sort_plus()}}
 
-If-statement: \code{\link[=if.]{if.()}}, \code{\link[=else_if.]{else_if.()}}, \code{\link[=else.]{else.()}}
+If-statement: \code{\link[=if.]{if.()}}, \code{\link[=else_if.]{else_if.()}}, \code{\link[=else.]{else.()}}, \code{\link[=where.]{where.()}}
 
 Monitoring: \code{\link[=monitor_start]{monitor_start()}}, \code{\link[=monitor_end]{monitor_end()}}, \code{\link[=monitor_next]{monitor_next()}}, \code{\link[=monitor_plot]{monitor_plot()}}
 
@@ -58,9 +58,13 @@ Renaming: \code{\link[=rename_pattern]{rename_pattern()}}, \code{\link[=add_exte
 
 Retaining: \code{\link[=running_number]{running_number()}}, \code{\link[=mark_case]{mark_case()}}, \code{\link[=retain_value]{retain_value()}}, \code{\link[=retain_sum]{retain_sum()}}, \code{\link[=retain_variables]{retain_variables()}}
 
+Character Manipulation: \code{\link[=concat]{concat()}}, \code{\link[=sub_string]{sub_string()}}, \code{\link[=remove_blanks]{remove_blanks()}}
+
 Generate dummy data: \code{\link[=dummy_data]{dummy_data()}}
 
 Conversion: \code{\link[=args_to_char]{args_to_char()}}, \code{\link[=dots_to_char]{dots_to_char()}}, \code{\link[=get_origin_as_char]{get_origin_as_char()}} \code{\link[=convert_numeric]{convert_numeric()}}, \code{\link[=convert_factor]{convert_factor()}}
+
+Macros: \code{\link[=macro]{macro()}}, \code{\link[=apply_macro]{apply_macro()}}
 
 Loading: \code{\link[=libname]{libname()}}, \code{\link[=set]{set()}}
 
@@ -76,9 +80,10 @@ Error handling: \code{\link[=resolve_intersection]{resolve_intersection()}}, \co
 Global options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=reset_style_options]{reset_style_options()}}, \code{\link[=get_style_options]{get_style_options()}}, \code{\link[=close_file]{close_file()}},
 \code{\link[=set_variable_labels]{set_variable_labels()}}, \code{\link[=get_variable_labels]{get_variable_labels()}}, \code{\link[=set_stat_labels]{set_stat_labels()}}, \code{\link[=get_stat_labels]{get_stat_labels()}},
 \code{\link[=set_print]{set_print()}}, \code{\link[=get_print]{get_print()}}, \code{\link[=set_monitor]{set_monitor()}}, \code{\link[=get_monitor]{get_monitor()}}, \code{\link[=set_na.rm]{set_na.rm()}}, \code{\link[=get_na.rm]{get_na.rm()}},
-\code{\link[=set_output]{set_output()}}, \code{\link[=get_output]{get_output()}}, \code{\link[=set_titles]{set_titles()}}, \code{\link[=get_titles]{get_titles()}}, \code{\link[=set_footnotes]{set_footnotes()}}, \code{\link[=get_footnotes]{get_footnotes()}}
+\code{\link[=set_output]{set_output()}}, \code{\link[=get_output]{get_output()}}, \code{\link[=set_titles]{set_titles()}}, \code{\link[=get_titles]{get_titles()}}, \code{\link[=set_footnotes]{set_footnotes()}}, \code{\link[=get_footnotes]{get_footnotes()}},
+\code{\link[=set_print_miss]{set_print_miss()}}, \code{\link[=get_print_miss]{get_print_miss()}}
 
-Other: \code{\link[=build_master]{build_master()}}, \code{\link[=build_rstheme]{build_rstheme()}}
+Other: \code{\link[=build_master]{build_master()}}, \code{\link[=build_rstheme]{build_rstheme()}}, \code{\link[=free_memory]{free_memory()}}
 }
 
 \section{Snippets}{

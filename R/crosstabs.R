@@ -24,6 +24,9 @@
 #' @param output The following output formats are available: console (default), text,
 #' excel and excel_nostyle.
 #' @param na.rm FALSE by default. If TRUE removes all NA values from the variables.
+#' @param print_miss FALSE by default. If TRUE outputs all possible categories of the
+#' grouping variables based on the provided formats, even if there are no observations
+#' for a combination.
 #' @param print TRUE by default. If TRUE prints the output, if FALSE doesn't print anything. Can be used
 #' if one only wants to catch the output data frame.
 #' @param monitor FALSE by default. If TRUE, outputs two charts to visualize the functions time consumption.
@@ -151,7 +154,7 @@ crosstabs <- function(data_frame,
                       rows,
                       columns,
                       show_total = TRUE,
-                      statistics = c("sum"),
+                      statistics = "sum",
                       formats    = c(),
                       by         = c(),
                       weight     = NULL,
@@ -160,6 +163,7 @@ crosstabs <- function(data_frame,
                       style      = .qol_options[["excel_style"]],
                       output     = .qol_options[["output"]],
                       na.rm      = .qol_options[["na.rm"]],
+                      print_miss = .qol_options[["print_miss"]],
                       print      = .qol_options[["print"]],
                       monitor    = .qol_options[["monitor"]]){
 
@@ -275,6 +279,13 @@ crosstabs <- function(data_frame,
         output <- tolower(output)
     }
 
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Statistics
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    statistics <- get_origin_as_char(statistics, substitute(statistics))
+    statistics <- tolower(statistics)
+
     # Get the intersection of the requested statistics to make sure
     # only valid actions are passed down
     statistics <- statistics[collapse::funique(statistics) %in%
@@ -284,6 +295,13 @@ crosstabs <- function(data_frame,
     if (length(statistics) == 0){
         statistics <- "sum"
     }
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Resolve macros
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    titles    <- apply_macro(titles)
+    footnotes <- apply_macro(footnotes)
 
     ###########################################################################
     # Cross tabulation starts
@@ -314,7 +332,8 @@ crosstabs <- function(data_frame,
                             weight     = weight_var,
                             nesting    = "deepest",
                             notes      = FALSE,
-                            na.rm      = na.rm)) |>
+                            na.rm      = na.rm,
+                            print_miss = print_miss)) |>
             drop_type_vars() |>
             collapse::frename(var_pct_group = var_pct_row)
 
@@ -325,7 +344,7 @@ crosstabs <- function(data_frame,
         # running numbers instead of the values or labels.
         run_nr_df        <- data.table::data.table(column_names)
         names(run_nr_df) <- columns
-        run_nr_df        <- run_nr_df |> running_number()
+        run_nr_df[["run_nr"]] <- run_nr_df |> running_number()
 
         cross_tab <- cross_tab |>
             collapse::join(run_nr_df,
@@ -353,7 +372,8 @@ crosstabs <- function(data_frame,
                            nesting    = "all",
                            types      = combinations,
                            notes      = FALSE,
-                           na.rm      = na.rm)) |>
+                           na.rm      = na.rm,
+                           print_miss = print_miss)) |>
             collapse::frename(var_pct_group = var_pct_row) |>
             fuse_variables("by_vars", by)
 
@@ -366,7 +386,7 @@ crosstabs <- function(data_frame,
         # running numbers instead of the values or labels.
         run_nr_df        <- data.table::data.table(column_names)
         names(run_nr_df) <- columns
-        run_nr_df        <- run_nr_df |> running_number()
+        run_nr_df[["run_nr"]] <- run_nr_df |> running_number()
 
         cross_tab <- cross_tab |>
             collapse::join(run_nr_df,
@@ -428,7 +448,7 @@ crosstabs <- function(data_frame,
         else{
             wb_list <- format_cross_by_excel(cross_tab, rows, columns, column_names,
                                              statistics, formats, by, titles, footnotes,
-                                             style, output, show_total, na.rm, wb, monitor_df)
+                                             style, output, show_total, na.rm, print_miss, wb, monitor_df)
 
             wb         <- wb_list[[1]]
             monitor_df <- wb_list[[2]]
@@ -1132,6 +1152,10 @@ format_cross_by_text <- function(cross_tab,
 #' @param output Determines whether to style the output or to just quickly paste
 #' the data.
 #' @param na.rm If TRUE removes all NA values from the tabulation.
+#' @param print_miss FALSE by default. If TRUE outputs all possible categories of the
+#' grouping variables based on the provided formats, even if there are no observations
+#' for a combination.
+#' @param wb An already created workbook to add more sheets to.
 #' @param monitor_df Data frame which stores the monitoring values.
 #'
 #' @return
@@ -1152,6 +1176,7 @@ format_cross_by_excel <- function(cross_tab,
                                   output,
                                   show_total,
                                   na.rm,
+                                  print_miss,
                                   wb,
                                   monitor_df){
     #-------------------------------------------------------------------------#
@@ -1222,23 +1247,53 @@ format_cross_by_excel <- function(cross_tab,
                     collapse::fsubset(is.na(cross_by[["by_vars"]]))
             }
 
-            # Generate frequency tables as normal but base is filtered data frame
-            wb_list <- format_cross_excel(wb,
-                                          cross_temp,
-                                          rows,
-                                          columns,
-                                          column_names,
-                                          statistics,
-                                          formats,
-                                          by,
-                                          titles,
-                                          footnotes,
-                                          style,
-                                          output,
-                                          show_total,
-                                          by_info,
-                                          index,
-                                          NULL)
+            # The print_miss option enables a shortcut in formatting the sheets after
+            # the first one. Since it guarantees that all follow up sheets are printed
+            # with the exact same table width and height, because all categories are
+            # printed, only the first sheet must be formatted. All other sheets can
+            # clone the entire style from the first sheet.
+            if (index == 1 || !print_miss){
+                # Generate frequency tables as normal but base is filtered data frame
+                wb_list <- format_cross_excel(wb,
+                                              cross_temp,
+                                              rows,
+                                              columns,
+                                              column_names,
+                                              statistics,
+                                              formats,
+                                              by,
+                                              titles,
+                                              footnotes,
+                                              style,
+                                              output,
+                                              show_total,
+                                              by_info,
+                                              index,
+                                              NULL)
+            }
+            # Clone style for follow up iterations
+            else{
+                # Generate tables with no style but base is filtered data frame
+                wb_list <- format_cross_excel(wb,
+                                              cross_temp,
+                                              rows,
+                                              columns,
+                                              column_names,
+                                              statistics,
+                                              formats,
+                                              by,
+                                              titles,
+                                              footnotes,
+                                              style,
+                                              "excel_nostyle",
+                                              show_total,
+                                              by_info,
+                                              index,
+                                              NULL)
+
+                # Clone entire style from first sheet
+                wb_list[[1]]$clone_sheet_style(from = 1, to = index)
+            }
 
             index <- index + 1
 

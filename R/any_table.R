@@ -58,6 +58,9 @@
 #' Styles can be created with [excel_output_style()].
 #' @param output The following output formats are available: excel and excel_nostyle.
 #' @param na.rm FALSE by default. If TRUE removes all NA values from the variables.
+#' @param print_miss FALSE by default. If TRUE outputs all possible categories of the
+#' grouping variables based on the provided formats, even if there are no observations
+#' for a combination.
 #' @param print TRUE by default. If TRUE prints the output, if FALSE doesn't print anything. Can be used
 #' if one only wants to catch the output data frame and workbook with meta information.
 #' @param monitor FALSE by default. If TRUE, outputs two charts to visualize the functions time consumption.
@@ -189,7 +192,7 @@
 #'
 #' # Percentages based on value variables instead of categories
 #' my_data |> any_table(rows       = c("age + year"),
-#'                      columns    = c("sex"),
+#'                      columns    = "sex",
 #'                      values     = c(probability, person),
 #'                      statistics = c("pct_value", "sum", "freq"),
 #'                      pct_value  = list(rate = "probability / person"),
@@ -204,7 +207,7 @@
 #' # readable with less text. To completely remove a variable label just put in an
 #' # empty text "" as label.
 #' my_data |> any_table(rows        = c("age + year"),
-#'                      columns     = c("sex"),
+#'                      columns     = "sex",
 #'                      values      = weight,
 #'                      statistics  = c("sum", "pct_group"),
 #'                      order_by    = "interleaved",
@@ -219,7 +222,7 @@
 #'                                font              = "Times New Roman")
 #'
 #' my_data |> any_table(rows       = c("age + year"),
-#'                      columns    = c("sex"),
+#'                      columns    = "sex",
 #'                      values     = c(probability, person),
 #'                      statistics = c("pct_value", "sum", "freq"),
 #'                      pct_value  = list(rate = "probability / person"),
@@ -232,23 +235,29 @@
 #' my_style <- my_style |> modify_output_style(sheet_name = "age_sex")
 #'
 #' result_list <- my_data |>
-#'            any_table(rows       = c("age"),
-#'                      columns    = c("sex"),
+#'            any_table(rows       = "age",
+#'                      columns    = "sex",
 #'                      values     = weight,
-#'                      statistics = c("sum"),
+#'                      statistics = "sum",
 #'                      formats    = list(sex = sex., age = age.),
+#'                      style      = my_style,
 #'                      na.rm      = TRUE,
 #'                      print      = FALSE)
 #'
 #' my_style <- my_style |> modify_output_style(sheet_name = "edu_year")
 #'
 #' my_data |> any_table(workbook   = result_list[["workbook"]],
-#'                      rows       = c("education"),
-#'                      columns    = c("year"),
+#'                      rows       = "education",
+#'                      columns    = "year",
 #'                      values     = weight,
-#'                      statistics = c("pct_group"),
+#'                      statistics = "pct_group",
 #'                      formats    = list(education = education.),
+#'                      style      = my_style,
 #'                      na.rm      = TRUE)
+#'
+#' # The result list from above also carries the transformed data frame if
+#' # needed for further usage
+#' any_table_df <- result_list[["table"]]
 #'
 #' # Output multiple complex tables by expressions of another variable.
 #' # If you specify the sheet name as "by" in the output style, the sheet
@@ -257,11 +266,11 @@
 #' my_style <- my_style |> modify_output_style(sheet_name = "by")
 #'
 #' my_data |> any_table(rows       = c("sex", "age"),
-#'                      columns    = c("education + year"),
+#'                      columns    = "education + year",
 #'                      values     = weight,
 #'                      by         = state,
 #'                      statistics = c("sum", "pct_group"),
-#'                      pct_group  = c("education"),
+#'                      pct_group  = "education",
 #'                      formats    = list(sex = sex., age = age., state = state.,
 #'                                        education = education.),
 #'                      na.rm      = TRUE)
@@ -295,7 +304,7 @@ any_table <- function(data_frame,
                       rows,
                       columns        = "",
                       values,
-                      statistics     = c("sum"),
+                      statistics     = "sum",
                       pct_group      = c(),
                       pct_value      = list(),
                       formats        = list(),
@@ -311,6 +320,7 @@ any_table <- function(data_frame,
                       style          = .qol_options[["excel_style"]],
                       output         = .qol_options[["output"]],
                       na.rm          = .qol_options[["na.rm"]],
+                      print_miss     = .qol_options[["print_miss"]],
                       print          = .qol_options[["print"]],
                       monitor        = .qol_options[["monitor"]]){
 
@@ -344,6 +354,9 @@ any_table <- function(data_frame,
     # Row variables
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+    # Enable the use of macro variables
+    rows <- apply_macro(rows)
+
     # Get row variables from provided combinations
     row_vars <- unlist_variables(rows)
 
@@ -370,6 +383,9 @@ any_table <- function(data_frame,
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Column variables
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    # Enable the use of macro variables
+    columns <- apply_macro(columns)
 
     # Get row variables from provided combinations
     col_vars <- unlist_variables(columns)
@@ -449,11 +465,13 @@ any_table <- function(data_frame,
     # Convert to character vectors
     values <- get_origin_as_char(values, substitute(values))
 
-    # If no value variables are provided abort
+    # If no value variables are provided generate a temporary variable which
+    # outputs unweighted results.
     if (length(values) <= 1){
         if (length(values) == 0 || values == ""){
-            message(" X ERROR: No <values> provided. Tabulation will be aborted.")
-            return(invisible(NULL))
+            values     <- ".temp_values"
+            var_labels <- c(var_labels, .temp_values = "")
+            data_frame[[values]] <- 1
         }
     }
 
@@ -499,12 +517,19 @@ any_table <- function(data_frame,
     # Order
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    # Correct nesting option if not set right
+    # Correct ordering option if not set right
     if (!tolower(order_by) %in% c("values", "stats", "values_stats", "columns", "interleaved")){
         message(" ! WARNING: <Order by> option '", order_by, "' doesn't exist. Options 'values', 'stats', 'values_stats', 'columns'\n",
                 "            and 'interleaved' are available. <Order by> will be set to 'stats'.")
         order_by <- "stats"
     }
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Statistics
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    statistics <- get_origin_as_char(statistics, substitute(statistics))
+    statistics <- tolower(statistics)
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Pre summarised data
@@ -515,9 +540,28 @@ any_table <- function(data_frame,
     # In case of using a pre summarised data frame, underscores are only allowed, if they carry
     # the statistics extension afterwards.
     if (pre_summed){
+        # Only keep provided variables, otherwise it can happen later on that e.g. too many
+        # variables are pivoted
+        data_frame <- data_frame |> keep(by, variables, values, ".temp_weight")
+
+        # If the TYPE variable isn't present in the data frame it will be generated here from
+        # the provided variables.
         if (!"TYPE" %in% names(data_frame)){
-            message(" X ERROR: The pre summarised data needs the 'TYPE' variable generated by <summarise_plus>. Tabulation will be aborted.")
-            return(invisible(NULL))
+            # For each observation check the non NA variables and combine their names in the TYPE
+            # variable.
+            data_frame[["TYPE"]] <- apply(data_frame[c(by, variables)], 1,
+                function(variable){
+                    var_name <- names(variable)[!is.na(variable)]
+
+                    if (length(var_name) == 0){
+                        NA_character_
+                    }
+                    else{
+                        paste(var_name, collapse = "+")
+                    }
+                })
+
+            data_frame |> data.table::setcolorder(c(by, variables, "TYPE"))
         }
 
         # Check if value variables have statistics extension
@@ -526,11 +570,14 @@ any_table <- function(data_frame,
                         "_last", "_sum_wgt", "_p[0-9]+$", "_sd", "_variance", "_missing")
         pattern    <- paste0("(", paste(extensions, collapse = "|"), ")$")
 
-        # If one of the value variables hasn't got any of the above extension abort
+        # If one of the value variables hasn't got any of the above extension, add extensions automatically as provided
         if (!all(grepl(pattern, values))){
-            message(" X ERROR: All <values> variables need to have the <statistic> extensions in their variable names.\n",
-                    "          You can use the function 'add_extension' to achieve this. Execution will be aborted.")
-            return(invisible(NULL))
+            message(" ! WARNING: All <values> variables need to have the <statistic> extension in their variable name.\n",
+                    "            You can use the function 'add_extension' to achieve this. Provided <statistic> will be used.\n",
+                    "            This can lead to a wrong table structure, better add extensions by yourself.")
+
+            data_frame <- data_frame |> add_extension(length(c(by, variables, "TYPE")) + 1,
+                                                      rep(statistics, length(values))[1:length(values)])
         }
 
         # Set up options to make sure nothing errors below. Statistics is set to "mean"
@@ -574,6 +621,8 @@ any_table <- function(data_frame,
     # Percentages
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+    pct_group <- get_origin_as_char(pct_group, substitute(pct_group))
+
     # Remove missing variables from pct_group
     if ("pct_group" %in% tolower(statistics)){
         invalid_pct <- pct_group[!pct_group %in% c(row_vars, col_vars)]
@@ -595,6 +644,15 @@ any_table <- function(data_frame,
         statistics      <- c(statistics, "sum")
         flag_remove_sum <- TRUE
     }
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Resolve macros
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    titles      <- apply_macro(titles)
+    footnotes   <- apply_macro(footnotes)
+    var_labels  <- apply_macro(var_labels)
+    stat_labels <- apply_macro(stat_labels)
 
     ###########################################################################
     # Any tabulation starts
@@ -646,7 +704,8 @@ any_table <- function(data_frame,
                              nesting    = "all",
                              types      = combinations,
                              notes      = FALSE,
-                             na.rm      = na.rm)) |>
+                             na.rm      = na.rm,
+                             print_miss = print_miss)) |>
             rename_pattern("pct_group", paste0("pct_group_", pct_group[1])) |>
             collapse::fsubset(TYPE != "total")
     }
@@ -770,14 +829,15 @@ any_table <- function(data_frame,
                                nesting    = "all",
                                types      = combinations,
                                notes      = FALSE,
-                               na.rm      = na.rm)) |>
+                               na.rm      = na.rm,
+                               print_miss = print_miss)) |>
                 rename_pattern("pct_group", paste0("pct_group_", pct_group[group])) |>
                 drop_type_vars()
 
             merge_vars <- variables
 
             if (length(by) > 0){
-                group_tab <- group_tab |> fuse_variables("by_vars", by)
+                group_tab  <- group_tab |> fuse_variables("by_vars", by)
                 merge_vars <- c("by_vars", variables)
             }
 
@@ -860,11 +920,7 @@ any_table <- function(data_frame,
     }
 
     # Round values according to number formats
-    for (var_name in names(any_tab)){
-        if (!var_name %in% value_vars){
-            next
-        }
-
+    for (var_name in value_vars){
         # Get stat from variable name
         stat <- strsplit(var_name, split = "_")[[1]]
         stat <- stat[length(stat)]
@@ -883,7 +939,7 @@ any_table <- function(data_frame,
             any_tab[[var_name]] <- round(any_tab[[var_name]],
                                          style[["number_formats"]][["sum_decimals"]])
         }
-        else if(grepl("^[0-9]$", substr(stat, 2, 2))){
+        else if(length(stat) <= 3 && substr(stat, 1, 1) == "p" && grepl("^[0-9]$", substr(stat, 2, 2))){
             any_tab[[var_name]] <- round(any_tab[[var_name]],
                                          style[["number_formats"]][["p_decimals"]])
         }
@@ -1251,7 +1307,7 @@ any_table <- function(data_frame,
     meta <- mget(c("rows", "columns", "statistics",
                    "by", "titles", "footnotes", "var_labels", "stat_labels",
                    "box", "any_header", "row_header_dimensions",
-                   "style", "na.rm"))
+                   "style", "na.rm", "print_miss"))
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Prepare table format for output
@@ -1287,10 +1343,18 @@ any_table <- function(data_frame,
     }
     # In case there are  by variables are provided
     else{
-        wb_list <- format_any_by_excel(workbook, any_tab, rows, columns, statistics,
-                                       by, titles, footnotes, var_labels, stat_labels,
-                                       box, any_header,
-                                       style, output, na.rm, monitor_df)
+        if (!style[["by_as_subheaders"]]){
+            wb_list <- format_any_by_excel(workbook, any_tab, rows, columns, statistics,
+                                           by, titles, footnotes, var_labels, stat_labels,
+                                           box, any_header,
+                                           style, output, na.rm, print_miss, monitor_df)
+        }
+        else{
+            wb_list <- format_by_single_table(workbook, any_tab, rows, columns, statistics,
+                                              by, titles, footnotes, var_labels, stat_labels,
+                                              box, any_header,
+                                              style, output, na.rm, print_miss, monitor_df)
+        }
 
         wb         <- wb_list[[1]]
         monitor_df <- wb_list[[2]]
@@ -1518,6 +1582,25 @@ format_any_excel <- function(wb,
         #---------------------------------------------------------------------#
         wb <- wb |> handle_cell_styles(any_ranges, style)
 
+        # Format subheaders, if present
+        if (style[["by_as_subheaders"]]){
+            # Get subheader ranges and the ones of the empty column header
+            subheader_range     <- any_ranges[["subheader_range"]]
+            pre_subheader_range <- any_ranges[["pre_subheader_range"]]
+
+            # Merge subheaders and apply style
+            for (sub_range in seq_along(subheader_range)){
+                wb$add_data(x          = style[["subheaders"]][[sub_range]],
+                            start_col  = any_ranges[["header.column"]] + any_ranges[["cat_col.width"]],
+                            start_row  = any_ranges[["table.row"]] + (style[["subheader_rows"]][[sub_range]] - 1),
+                            col_names  = FALSE,
+                            na.strings = style[["na_symbol"]])
+
+                wb$merge_cells(dims = pre_subheader_range[[sub_range]])
+                wb$merge_cells(dims = subheader_range[[sub_range]])
+            }
+        }
+
         #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Excel number formats", "Format")
         #---------------------------------------------------------------------#
@@ -1640,6 +1723,12 @@ set_col_variable_labels <- function(column_header, var_labels){
         return(column_header)
     }
 
+    # Order list by the length of the variable names (descending) to prevent that, if
+    # the shortest variable name is at the top, and other variables follow with the
+    # same base name (like: age, age1, age2), it would overwrite all other labels for
+    # the following variables with the same base name.
+    var_labels <- var_labels[order(nchar(names(var_labels)), decreasing = TRUE)]
+
     # Loop through all provided labels
     for (i in seq_along(var_labels)){
         name  <- names(var_labels)[i]
@@ -1651,7 +1740,7 @@ set_col_variable_labels <- function(column_header, var_labels){
         }
 
         # Replace variable texts with provided labels
-        column_header[,] <- gsub(name, label, as.matrix(column_header))
+        column_header[,] <- gsub(paste0("^", name, "$"), label, as.matrix(column_header))
     }
 
     # If header only consists of one row it gets converted to a vector when using gsub above.
@@ -1684,6 +1773,15 @@ build_multi_header <- function(var_names,
                                any_header,
                                var_labels,
                                style){
+    # Make sure no statistic is part of the variable labels
+    extensions <- c("sum", "pctgroup", "pcttotal", "pctvalue", "pct", "freqg0",
+                    "freq", "mean", "median", "mode", "min", "max", "first",
+                    "last", "sumwgt", "p[0-9]+$", "sd", "variance", "missing")
+
+    labels_to_drop <- grepl(paste(extensions, collapse = "|"), names(var_labels))
+
+    var_labels <- var_labels[!labels_to_drop]
+
     # Replace variable texts with custom labels
     any_header      <- any_header |> set_col_variable_labels(var_labels)
     col_var_headers <- data.table::as.data.table(any_header, stringsAsFactors = FALSE)
@@ -1722,11 +1820,10 @@ build_multi_header <- function(var_names,
     })
 
     # Revert back underscores
-    header_matrix   <- gsub("!!!", "_", header_matrix)
+    header_matrix <- gsub("!!!", "_", header_matrix)
 
     # Replace variable texts with custom labels
-    header_matrix <- header_matrix |>
-        set_col_variable_labels(var_labels)
+    header_matrix <- header_matrix |> set_col_variable_labels(var_labels)
 
     # Make sure header_matrix is treated as a matrix, even though there can be only one row
     if (is.null(dim(header_matrix))) {
@@ -1736,8 +1833,7 @@ build_multi_header <- function(var_names,
     # Drop completely empty rows
     if (collapse::fnrow(header_matrix) > 1){
         header_matrix <- data.table::as.data.table(
-            header_matrix[rowSums(header_matrix != "" & header_matrix != " ") > 0,
-                          colSums(header_matrix != "" & header_matrix != " ") > 0, drop = FALSE])
+            header_matrix[, colSums(header_matrix != "" & header_matrix != " ") > 0, drop = FALSE])
     }
     else{
         header_matrix <- data.table::as.data.table(
@@ -1778,7 +1874,7 @@ merge_headers <- function(value_header, variable_header){
             variable_row <- variable_header[i, , drop = FALSE]
 
             # Only inject variable row, if the row isn't completely empty
-            if (!all(variable_row == "")) {
+            if (!all(variable_row == "")){
                 row_list[[length(row_list) + 1]] <- variable_row
             }
         }
@@ -1788,14 +1884,15 @@ merge_headers <- function(value_header, variable_header){
     data.table::rbindlist(row_list, use.names = FALSE)
 }
 
+
 ###############################################################################
 # Format grouped by tables for excel output
 ###############################################################################
 #' Format Any Table Output with by Variables (Excel Based)
 #'
 #' @description
-#' Format any table with the provided row and column variables. Statistics
-#' can be anything available.
+#' Format any table with the provided row and column variables. Data frame is split
+#' by by-variables, each table gets printed on a different sheet.
 #'
 #' @param wb An already created workbook to add more sheets to.
 #' @param any_tab The data frame which contains the information for this cross
@@ -1814,6 +1911,9 @@ merge_headers <- function(value_header, variable_header){
 #' @param output Determines whether to style the output or to just quickly paste
 #' the data.
 #' @param na.rm If TRUE removes all NA values from the tabulation.
+#' @param print_miss FALSE by default. If TRUE outputs all possible categories of the
+#' grouping variables based on the provided formats, even if there are no observations
+#' for a combination.
 #' @param monitor_df Data frame which stores the monitoring values.
 #'
 #' @return
@@ -1836,6 +1936,7 @@ format_any_by_excel <- function(wb,
                                 style,
                                 output,
                                 na.rm,
+                                print_miss,
                                 monitor_df){
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1903,24 +2004,56 @@ format_any_by_excel <- function(wb,
                 titles_temp <- by_info
             }
 
-            # Generate frequency tables as normal but base is filtered data frame
-            wb_list <- format_any_excel(wb,
-                                        any_temp,
-                                        rows,
-                                        columns,
-                                        statistics,
-                                        value,
-                                        titles_temp,
-                                        footnotes,
-                                        var_labels,
-                                        stat_labels,
-                                        box,
-                                        any_header,
-                                        style,
-                                        output,
-                                        by_info,
-                                        index,
-                                        NULL)
+            # The print_miss option enables a shortcut in formatting the sheets after
+            # the first one. Since it guarantees that all follow up sheets are printed
+            # with the exact same table width and height, because all categories are
+            # printed, only the first sheet must be formatted. All other sheets can
+            # clone the entire style from the first sheet.
+            if (index == 1 || !print_miss){
+                # Generate tables as normal but base is filtered data frame
+                wb_list <- format_any_excel(wb,
+                                            any_temp,
+                                            rows,
+                                            columns,
+                                            statistics,
+                                            value,
+                                            titles_temp,
+                                            footnotes,
+                                            var_labels,
+                                            stat_labels,
+                                            box,
+                                            any_header,
+                                            style,
+                                            output,
+                                            by_info,
+                                            index,
+                                            NULL)
+
+            }
+            # Clone style for follow up iterations
+            else{
+                # Generate tables with no style but base is filtered data frame
+                wb_list <- format_any_excel(wb,
+                                            any_temp,
+                                            rows,
+                                            columns,
+                                            statistics,
+                                            value,
+                                            titles_temp,
+                                            footnotes,
+                                            var_labels,
+                                            stat_labels,
+                                            box,
+                                            any_header,
+                                            style,
+                                            "excel_nostyle",
+                                            by_info,
+                                            index,
+                                            NULL)
+
+                # Clone entire style from first sheet
+                wb_list[[1]]$clone_sheet_style(from = 1, to = index)
+            }
 
             index <- index + 1
 
@@ -1934,6 +2067,146 @@ format_any_by_excel <- function(wb,
 
     # Return workbook
     list(wb, monitor_df)
+}
+
+
+###############################################################################
+# Format grouped by tables for excel output in one table
+###############################################################################
+#' Format Any Table Output with by Variables On One Sheet (Excel Based)
+#'
+#' @description
+#' Format any table with the provided row and column variables. Data frame is printed
+#' as one on one sheet. By-variables are used as subheaders.
+#'
+#' @param wb An already created workbook to add more sheets to.
+#' @param any_tab The data frame which contains the information for this cross
+#' table.
+#' @param rows The variable that appears in the table rows.
+#' @param columns The variable that appears in the table columns.
+#' @param statistics The user requested statistics.
+#' @param by Separate the cross table output by the expressions of the provided variables.
+#' @param titles Character vector of titles to display above the table.
+#' @param footnotes Character vector of footnotes to display under the table.
+#' @param var_labels List which contains column variable names and their respective labels.
+#' @param stat_labels List which contains statistic names and their respective labels.
+#' @param box The text that should appear in the upper left box of the table.
+#' @param any_header The column header carrying the variable names.
+#' @param style A list containing the styling elements.
+#' @param output Determines whether to style the output or to just quickly paste
+#' the data.
+#' @param na.rm If TRUE removes all NA values from the tabulation.
+#' @param print_miss FALSE by default. If TRUE outputs all possible categories of the
+#' grouping variables based on the provided formats, even if there are no observations
+#' for a combination.
+#' @param monitor_df Data frame which stores the monitoring values.
+#'
+#' @return
+#' Returns a list containing a formatted Excel workbook as well as the monitoring
+#' data frame.
+#'
+#' @noRd
+format_by_single_table <- function(wb,
+                                   any_tab,
+                                   rows,
+                                   columns,
+                                   statistics,
+                                   by,
+                                   titles,
+                                   footnotes,
+                                   var_labels,
+                                   stat_labels,
+                                   box,
+                                   any_header,
+                                   style,
+                                   output,
+                                   na.rm,
+                                   print_miss,
+                                   monitor_df){
+    #---------------------------------------------------------------------#
+    monitor_df <- monitor_df |> monitor_start("Insert subheaders", "Format by")
+    #---------------------------------------------------------------------#
+
+    # Store the variable names for later
+    var_names <- names(any_tab)
+
+    # Get the unique by variable expressions as subheaders
+    subheaders <- any_tab|>
+        collapse::fselect("by_vars")|>
+        collapse::funique("by_vars")
+
+    style[["subheaders"]] <- subheaders[[1]]
+
+    # Get number of row header variables by determining the number of character columns
+    variable_types        <- vapply(any_tab, is.character, logical(1))
+    number_of_row_headers <- which(!variable_types)[1] - 1
+    number_of_values      <- collapse::fncol(any_tab) - number_of_row_headers
+
+    # Split up data frame on by variable expressions
+    grouping   <- collapse::GRP(any_tab, "by_vars", sort = FALSE)
+    split_list <- any_tab |> collapse::gsplit(g = grouping, use.g.names = TRUE)
+
+    # Insert by variable expressions as subheadings
+    for (i in seq_along(split_list)){
+        # Get subheader name and bind together as data frame row
+        subheading <- split_list[[i]][1, "by_vars"]
+
+        # Generate empty subheader line in separate parts to ensure that the value
+        # columns will be set as numeric.
+        sub_part1 <- as.list(rep(" ", number_of_row_headers))
+        sub_part2 <- as.list(rep(NA_real_, number_of_values))
+
+        # Combine both parts into data frame
+        subheading_df <- data.table::as.data.table(c(sub_part1, sub_part2))
+
+        # Put subheader above the initial data frame
+        split_list[[i]] <- data.table::rbindlist(list(subheading_df, split_list[[i]]), use.names = FALSE)
+
+        # Insert a helper column which indicates where in the data frame the headline sits.
+        # This is later used to identify the subheader rows in the full data frame
+        split_list[[i]][[".subheader"]]  <- 0
+        split_list[[i]][1, ".subheader"] <- 1
+    }
+
+    # Bind full data frame back together
+    any_tab <- data.table::rbindlist(split_list, use.names = FALSE)
+
+    names(any_tab) <- c(var_names, ".subheader")
+    any_tab <- any_tab |> collapse::fselect(-BY, -by_vars)
+
+    # Set row numbers of subheaders in the helper column
+    any_tab[[".subheader"]][any_tab[[".subheader"]] == 1] <- which(any_tab[[".subheader"]] == 1)
+
+    subheader_rows <- any_tab |>
+        collapse::fselect(".subheader") |>
+        collapse::funique(".subheader") |>
+        collapse::fsubset(.subheader != 0)
+
+    style[["subheader_rows"]] <- subheader_rows[[1]]
+
+    # Generate tables as normal but base is filtered data frame
+    any_tab <- any_tab |> dropp(".subheader")
+
+    monitor_df <- monitor_df |> monitor_end()
+
+    wb_list <- format_any_excel(wb,
+                                any_tab,
+                                rows,
+                                columns,
+                                statistics,
+                                NULL,
+                                titles,
+                                footnotes,
+                                var_labels,
+                                stat_labels,
+                                box,
+                                any_header,
+                                style,
+                                output,
+                                monitor_df = monitor_df)
+
+    # Return workbook
+    list(wb_list[[1]], wb_list[[2]])
 }
 
 
@@ -1983,22 +2256,24 @@ format_any_by_excel <- function(wb,
 #'     "high education"   = "high")
 #'
 #' # Define style
-#' my_style <- excel_output_style(column_widths = c(2, 15, 15, 15, 9))
+#' set_style_options(column_widths = c(2, 15, 15, 15, 9))
 #'
 #' # Define titles and footnotes. If you want to add hyperlinks you can do so by
 #' # adding "link:" followed by the hyperlink to the main text.
-#' titles <- c("This is title number 1 link: https://cran.r-project.org/",
-#'             "This is title number 2",
-#'             "This is title number 3")
-#' footnotes <- c("This is footnote number 1",
-#'                "This is footnote number 2",
-#'                "This is footnote number 3 link: https://cran.r-project.org/")
+#' set_titles("This is title number 1 link: https://cran.r-project.org/",
+#'            "This is title number 2",
+#'            "This is title number 3")
+#' set_footnotes("This is footnote number 1",
+#'               "This is footnote number 2",
+#'               "This is footnote number 3 link: https://cran.r-project.org/")
 #'
 #' # Catch the output and additionally use the options:
 #' # pint = FALSE and output = "excel_nostyle".
 #' # This skips the styling and output part, so that the function runs faster.
 #' # The styling is done later on.
-#' my_style <- my_style |> modify_output_style(sheet_name = "big table")
+#' set_print(FALSE)
+#' set_output("excel_nostyle")
+#' set_style_options(sheet_name = "big table")
 #'
 #' tab1 <- my_data |> any_table(rows       = c("sex + age", "sex", "age"),
 #'                              columns    = c("year", "education + year"),
@@ -2007,40 +2282,35 @@ format_any_by_excel <- function(wb,
 #'                              pct_group  = c("sex", "age", "education", "year"),
 #'                              formats    = list(sex = sex., age = age.,
 #'                                                education = education.),
-#'                              style      = my_style,
-#'                              na.rm      = TRUE,
-#'                              print      = FALSE,
-#'                              output     = "excel_nostyle")
+#'                              na.rm      = TRUE)
 #'
-#' my_style <- my_style |> modify_output_style(sheet_name = "age_sex")
+#' set_style_options(sheet_name = "age_sex")
 #'
-#' tab2 <- my_data |> any_table(rows       = c("age"),
-#'                              columns    = c("sex"),
+#' tab2 <- my_data |> any_table(rows       = "age",
+#'                              columns    = "sex",
 #'                              values     = weight,
-#'                              statistics = c("sum"),
+#'                              statistics = "sum",
 #'                              formats    = list(sex = sex., age = age.),
-#'                              style      = my_style,
-#'                              na.rm      = TRUE,
-#'                              print      = FALSE,
-#'                              output     = "excel_nostyle")
+#'                              na.rm      = TRUE)
 #'
-#' my_style <- my_style |> modify_output_style(sheet_name = "edu_year")
+#' set_style_options(sheet_name = "edu_year")
 #'
-#' tab3 <- my_data |> any_table(rows       = c("education"),
-#'                              columns    = c("year"),
+#' tab3 <- my_data |> any_table(rows       = "education",
+#'                              columns    = "year",
 #'                              values     = weight,
-#'                              statistics = c("pct_group"),
+#'                              statistics = "pct_group",
 #'                              formats    = list(education = education.),
-#'                              style      = my_style,
-#'                              na.rm      = TRUE,
-#'                              print      = FALSE,
-#'                              output     = "excel_nostyle")
+#'                              na.rm      = TRUE)
 #'
 #' # Every of the above tabs is a list, which contains the data table, an unstyled
 #' # workbook and the meta information needed for the individual styling. These
 #' # tabs can be input into the following function, which reads the meta information,
 #' # styles each table individually and combines them as separate sheets into a single workbook.
 #' combine_into_workbook(tab1, tab2, tab3)
+#'
+#' # Reset the global options afterwards
+#' set_print(TRUE)
+#' set_output("excel")
 #'
 #' @export
 combine_into_workbook <- function(...,
@@ -2055,7 +2325,29 @@ combine_into_workbook <- function(...,
     # Measure the time
     start_time <- Sys.time()
 
-    tables    <- list(...)
+    # Translate ... into a list if possible
+    tables <- tryCatch({
+        # Force evaluation to see if it exists
+        list(...)
+    }, error = function(e) {
+        # Evaluation failed
+        NULL
+    })
+
+    if (is.null(tables)){
+        message("X ERROR: Unknown object found. Provide <any_table> results.\n",
+                "         Combining tables to workbook will be aborted.")
+        return(invisible(NULL))
+    }
+
+    for (table in tables){
+        if (!is.list(table) || !all(c("table", "workbook", "meta") %in% names(table))){
+            message("X ERROR: Unknown object found. Provide <any_table> results.\n",
+                    "         Combining tables to workbook will be aborted.")
+            return(invisible(NULL))
+        }
+    }
+
     tab_names <- as.character(substitute(list(...)))[-1]
     wb        <- openxlsx2::wb_workbook()
 
@@ -2091,7 +2383,7 @@ combine_into_workbook <- function(...,
                                     meta[["statistics"]], meta[["by"]], meta[["titles"]],
                                     meta[["footnotes"]], meta[["var_labels"]], meta[["stat_labels"]],
                                     meta[["box"]], meta[["any_header"]],
-                                    meta[["style"]], output, meta[["na.rm"]], monitor_df))
+                                    meta[["style"]], output, meta[["na.rm"]], meta[["print_miss"]], monitor_df))
 
             wb <- wb_list[[1]]
         }

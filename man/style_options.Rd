@@ -32,8 +32,7 @@ get_stat_labels()
 reset_qol_options()
 }
 \arguments{
-\item{...}{Put in any styling option from \code{\link[=excel_output_style]{excel_output_style()}} or \code{\link[=number_format_style]{number_format_style()}}
-with the new value.}
+\item{...}{\code{\link[=set_stat_labels]{set_stat_labels()}}: Put in the statistics and their respective labels.}
 }
 \value{
 \code{\link[=set_style_options]{set_style_options()}}: Returns modified global styling options.
@@ -104,7 +103,7 @@ reset_qol_options()
 
 }
 \seealso{
-Functions that use global styling optionss: \code{\link[=any_table]{any_table()}}, \code{\link[=frequencies]{frequencies()}},
+Functions that use global styling options: \code{\link[=any_table]{any_table()}}, \code{\link[=frequencies]{frequencies()}},
 \code{\link[=crosstabs]{crosstabs()}}.
 
 Functions that also use global variable labels: \code{\link[=export_with_style]{export_with_style()}}.

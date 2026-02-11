@@ -10,11 +10,13 @@ frequencies(
   formats = c(),
   by = c(),
   weight = NULL,
+  means = FALSE,
   titles = .qol_options[["titles"]],
   footnotes = .qol_options[["footnotes"]],
   style = .qol_options[["excel_style"]],
   output = .qol_options[["output"]],
   na.rm = .qol_options[["na.rm"]],
+  print_miss = .qol_options[["print_miss"]],
   print = .qol_options[["print"]],
   monitor = .qol_options[["monitor"]]
 )
@@ -30,6 +32,9 @@ frequencies(
 
 \item{weight}{Put in a weight variable to compute weighted results.}
 
+\item{means}{FALSE by default. If TRUE prints a small summarising table which contains mean, sd,
+min, max, total freq and missing values.}
+
 \item{titles}{Specify one or more table titles.}
 
 \item{footnotes}{Specify one or more table footnotes.}
@@ -41,6 +46,10 @@ Styles can be created with \code{\link[=excel_output_style]{excel_output_style()
 excel and excel_nostyle.}
 
 \item{na.rm}{FALSE by default. If TRUE removes all NA values from the variables.}
+
+\item{print_miss}{FALSE by default. If TRUE outputs all possible categories of the
+grouping variables based on the provided formats, even if there are no observations
+for a combination.}
 
 \item{print}{TRUE by default. If TRUE prints the output, if FALSE doesn't print anything. Can be used
 if one only wants to catch the output data frame.}

@@ -7,7 +7,7 @@
 
 set_style_options(as_heatmap = TRUE)
 
-dummy_df  <- suppressMessages(dummy_data(1000))
+dummy_df  <- suppressMessages(dummy_data(2000))
 dummy_big <- suppressMessages(dummy_data(10000))
 
 dummy_df[["binary"]] <- replicate(nrow(dummy_df), {
@@ -244,6 +244,20 @@ test_that("any_table with by variables and multiple row and column variables", {
 })
 
 
+test_that("any_table with by variables as subheaders", {
+    result_list <- suppressMessages(dummy_df |>
+            any_table(rows    = "age",
+                      columns = "sex",
+                      values  = weight,
+                      by      = education,
+                      style   = excel_output_style(by_as_subheaders = TRUE),
+                      print   = FALSE))
+
+    expect_true("BY" %in% names(result_list[[1]]))
+    expect_equal(length(unique(result_list[[1]][["BY"]])), 1)
+})
+
+
 test_that("any_table with by variables aborts if by is also part of rows or columns", {
     expect_message(result_list <- dummy_df |>
             any_table(rows    = "age",
@@ -356,14 +370,14 @@ test_that("any_table able to apply format on numeric values stored as character 
 })
 
 
-test_that("any_table converts numeric values stored as character to numeric, if no format is applied (short route)", {
+test_that("any_table doesn't convert numeric values stored as character (short route)", {
     result_list <- suppressMessages(dummy_df |>
             any_table(rows    = "binary",
                       columns = "sex",
                       values  = weight,
                       print   = FALSE))
 
-    expect_equal(result_list[[1]][["var1"]], c("0", "1", "10", "11"))
+    expect_equal(result_list[[1]][["var1"]], c("00", "01", "10", "11"))
 })
 
 
@@ -384,7 +398,7 @@ test_that("any_table able to apply format on numeric values stored as character 
 })
 
 
-test_that("any_table converts numeric values stored as character to numeric, if no format is applied (long route)", {
+test_that("any_table doesn't convert numeric values stored as character (long route)", {
     result_list <- suppressMessages(dummy_df |>
             any_table(rows       = "binary",
                       columns    = "sex",
@@ -392,7 +406,7 @@ test_that("any_table converts numeric values stored as character to numeric, if 
                       values     = weight,
                       print      = FALSE))
 
-    expect_equal(result_list[[1]][["var1"]], c("0", "1", "10", "11"))
+    expect_equal(result_list[[1]][["var1"]], c("00", "01", "10", "11"))
 })
 
 
@@ -526,6 +540,69 @@ test_that("Save any_table as Excel file", {
     expect_true(file.exists(temp_file))
 })
 
+
+test_that("Combine tables into a single workbook", {
+    my_style <- excel_output_style(sheet_name = "tab1")
+
+    tab1 <- suppressMessages(dummy_df |>
+         any_table(rows    = "age",
+                   columns = "sex",
+                   values  = weight,
+                   print   = FALSE))
+
+    my_style <- my_style |> modify_output_style(sheet_name = "tab2")
+
+    tab2 <- suppressMessages(dummy_df |>
+         any_table(rows    = "age",
+                   columns = "sex",
+                   values  = weight,
+                   by      = education,
+                   print   = FALSE))
+
+    temp_file <- tempfile(fileext = ".xlsx")
+    on.exit(unlink(temp_file), add = TRUE)
+
+    result <- combine_into_workbook(tab1, tab2, file = temp_file)
+
+    expect_type(result, "environment")
+    expect_true(file.exists(temp_file))
+})
+
+
+test_that("any_table throws a warning with missing statistic extension in pre summarised data", {
+    expect_message(result_list <- sum_df |>
+           any_table(rows       = "year",
+                     columns    = "sex",
+                     values     = DEPTH,
+                     print      = FALSE), " ! WARNING: All <values> variables need to have the <statistic> extension in their variable name.")
+
+    expect_type(result_list, "list")
+    expect_equal(length(result_list), 3)
+})
+
+
+test_that("any_table auto generates missing TYPE variable in pre summarised data", {
+    result_list <- sum_df |>
+           any_table(rows       = "year",
+                     columns    = "sex",
+                     values     = weight_sum,
+                     print      = FALSE)
+
+    expect_type(result_list, "list")
+    expect_equal(length(result_list), 3)
+})
+
+
+test_that("any_table outputs unweighted results without values variable", {
+    result_list <- dummy_df |>
+        any_table(rows    = "age",
+                  columns = "sex",
+                  print   = FALSE)
+
+    expect_type(result_list, "list")
+    expect_equal(length(result_list), 3)
+})
+
 ###############################################################################
 # Abort checks
 ###############################################################################
@@ -584,15 +661,6 @@ test_that("any_table aborts with invalid by variable", {
 })
 
 
-test_that("any_table aborts with invalid values", {
-    expect_message(result_list <- dummy_df |>
-           any_table(rows    = "age",
-                     columns = "sex",
-                     values  = "",
-                     print   = FALSE), " X ERROR: No <values> provided.")
-})
-
-
 test_that("any_table aborts with row/column variable part of values", {
     expect_message(result_list <- dummy_df |>
            any_table(rows    = "age",
@@ -616,15 +684,6 @@ test_that("any_table outputs sum values with only invalid pct_value statistic an
 })
 
 
-test_that("any_table aborts with missing statistic extension in pre summarised data", {
-    expect_message(result_list <- sum_df |>
-           any_table(rows       = "year",
-                     columns    = "sex",
-                     values     = TYPE_NR,
-                     print      = FALSE), " X ERROR: All <values> variables need to have the <statistic> extensions in their variable names")
-})
-
-
 test_that("any_table aborts with missing variable combination in pre summarised data", {
     expect_message(result_list <- sum_df2 |>
            any_table(rows       = c("year", "age"),
@@ -634,31 +693,17 @@ test_that("any_table aborts with missing variable combination in pre summarised 
 })
 
 
-test_that("Combine tables into a single workbook", {
-    my_style <- excel_output_style(sheet_name = "tab1")
-
-    tab1 <- suppressMessages(dummy_df |>
-                 any_table(rows    = "age",
-                           columns = "sex",
-                           values  = weight,
-                           print   = FALSE))
-
-    my_style <- my_style |> modify_output_style(sheet_name = "tab2")
-
-    tab2 <- suppressMessages(dummy_df |>
-                 any_table(rows    = "age",
-                           columns = "sex",
-                           values  = weight,
-                           by      = education,
-                           print   = FALSE))
-
+test_that("Combine tables into a single workbook aborts, if any not any_table object was found", {
     temp_file <- tempfile(fileext = ".xlsx")
     on.exit(unlink(temp_file), add = TRUE)
 
-    result <- combine_into_workbook(tab1, tab2, file = temp_file)
+    expect_message(result <- combine_into_workbook(1, file = temp_file),
+                   "X ERROR: Unknown object found. Provide <any_table> results.")
 
-    expect_type(result, "environment")
-    expect_true(file.exists(temp_file))
+    expect_message(result <- combine_into_workbook(list(1), file = temp_file),
+                   "X ERROR: Unknown object found. Provide <any_table> results.")
+
+    expect_true(!file.exists(temp_file))
 })
 
 set_style_options(as_heatmap = FALSE)

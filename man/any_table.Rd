@@ -9,7 +9,7 @@ any_table(
   rows,
   columns = "",
   values,
-  statistics = c("sum"),
+  statistics = "sum",
   pct_group = c(),
   pct_value = list(),
   formats = list(),
@@ -25,6 +25,7 @@ any_table(
   style = .qol_options[["excel_style"]],
   output = .qol_options[["output"]],
   na.rm = .qol_options[["na.rm"]],
+  print_miss = .qol_options[["print_miss"]],
   print = .qol_options[["print"]],
   monitor = .qol_options[["monitor"]]
 )
@@ -104,6 +105,10 @@ Styles can be created with \code{\link[=excel_output_style]{excel_output_style()
 \item{output}{The following output formats are available: excel and excel_nostyle.}
 
 \item{na.rm}{FALSE by default. If TRUE removes all NA values from the variables.}
+
+\item{print_miss}{FALSE by default. If TRUE outputs all possible categories of the
+grouping variables based on the provided formats, even if there are no observations
+for a combination.}
 
 \item{print}{TRUE by default. If TRUE prints the output, if FALSE doesn't print anything. Can be used
 if one only wants to catch the output data frame and workbook with meta information.}
@@ -227,7 +232,7 @@ my_data |> any_table(columns = c(            "year", "education + year"),
 
 # Percentages based on value variables instead of categories
 my_data |> any_table(rows       = c("age + year"),
-                     columns    = c("sex"),
+                     columns    = "sex",
                      values     = c(probability, person),
                      statistics = c("pct_value", "sum", "freq"),
                      pct_value  = list(rate = "probability / person"),
@@ -242,7 +247,7 @@ my_data |> any_table(rows       = c("age + year"),
 # readable with less text. To completely remove a variable label just put in an
 # empty text "" as label.
 my_data |> any_table(rows        = c("age + year"),
-                     columns     = c("sex"),
+                     columns     = "sex",
                      values      = weight,
                      statistics  = c("sum", "pct_group"),
                      order_by    = "interleaved",
@@ -257,7 +262,7 @@ my_style <- excel_output_style(header_back_color = "0077B6",
                                font              = "Times New Roman")
 
 my_data |> any_table(rows       = c("age + year"),
-                     columns    = c("sex"),
+                     columns    = "sex",
                      values     = c(probability, person),
                      statistics = c("pct_value", "sum", "freq"),
                      pct_value  = list(rate = "probability / person"),
@@ -270,23 +275,29 @@ my_data |> any_table(rows       = c("age + year"),
 my_style <- my_style |> modify_output_style(sheet_name = "age_sex")
 
 result_list <- my_data |>
-           any_table(rows       = c("age"),
-                     columns    = c("sex"),
+           any_table(rows       = "age",
+                     columns    = "sex",
                      values     = weight,
-                     statistics = c("sum"),
+                     statistics = "sum",
                      formats    = list(sex = sex., age = age.),
+                     style      = my_style,
                      na.rm      = TRUE,
                      print      = FALSE)
 
 my_style <- my_style |> modify_output_style(sheet_name = "edu_year")
 
 my_data |> any_table(workbook   = result_list[["workbook"]],
-                     rows       = c("education"),
-                     columns    = c("year"),
+                     rows       = "education",
+                     columns    = "year",
                      values     = weight,
-                     statistics = c("pct_group"),
+                     statistics = "pct_group",
                      formats    = list(education = education.),
+                     style      = my_style,
                      na.rm      = TRUE)
+
+# The result list from above also carries the transformed data frame if
+# needed for further usage
+any_table_df <- result_list[["table"]]
 
 # Output multiple complex tables by expressions of another variable.
 # If you specify the sheet name as "by" in the output style, the sheet
@@ -295,11 +306,11 @@ my_data |> any_table(workbook   = result_list[["workbook"]],
 my_style <- my_style |> modify_output_style(sheet_name = "by")
 
 my_data |> any_table(rows       = c("sex", "age"),
-                     columns    = c("education + year"),
+                     columns    = "education + year",
                      values     = weight,
                      by         = state,
                      statistics = c("sum", "pct_group"),
-                     pct_group  = c("education"),
+                     pct_group  = "education",
                      formats    = list(sex = sex., age = age., state = state.,
                                        education = education.),
                      na.rm      = TRUE)

@@ -17,7 +17,7 @@
 #' [set_style_options()]: Returns modified global styling options.
 #'
 #' @seealso
-#' Functions that use global styling optionss: [any_table()], [frequencies()],
+#' Functions that use global styling options: [any_table()], [frequencies()],
 #' [crosstabs()].
 #'
 #' Functions that also use global variable labels: [export_with_style()].
@@ -61,24 +61,24 @@ set_style_options <- function(...){
                            "median_excel", "mode_excel", "min_excel", "max_excel", "sd_excel", "variance_excel",
                            "first_excel", "last_excel", "p_excel", "missing_excel")
 
-    logicals <- c("freeze_col_header", "freeze_row_header", "filters", "grid_lines", "header_font_bold",
+    logicals <- c("freeze_col_header", "freeze_row_header", "filters", "grid_lines", "by_as_subheaders", "header_font_bold",
                   "header_borders", "cat_col_font_bold", "cat_col_borders", "table_font_bold", "table_borders",
                   "box_font_bold", "box_borders", "title_font_bold", "footnote_font_bold", "as_heatmap")
 
-    numerics <- c("start_row", "start_column", "header_font_size", "header_indent",
+    numerics <- c("start_row", "start_column", "header_font_size", "header_indent", "subheader_font_size", "subheader_indent",
                   "cat_col_font_size", "cat_col_indent", "table_font_size", "table_indent",
                   "box_font_size", "box_indent", "title_font_size", "footnote_font_size",
-                  "title_heights", "header_heights", "table_heights", "footnote_heights",
+                  "title_heights", "header_heights", "subheader_heights", "table_heights", "footnote_heights",
                   "column_widths", "row_heights")
 
-    characters  <- c("sheet_name", "font", "header_alignment", "header_wrap", "cat_col_alignment",
-                     "cat_col_wrap", "table_alignment", "box_alignment", "box_wrap", "title_alignment",
+    characters  <- c("sheet_name", "font", "header_alignment", "header_wrap", "subheader_alignment", "subheader_wrap",
+                     "cat_col_alignment", "cat_col_wrap", "table_alignment", "box_alignment", "box_wrap", "title_alignment",
                      "footnote_alignment", "na_symbol", "save_path", "file")
 
-    colors <- c("header_back_color", "header_font_color", "header_border_color", "cat_col_back_color", "cat_col_font_color",
-                "cat_col_border_color", "table_back_color", "table_font_color", "table_border_color",
-                "box_back_color", "box_font_color", "box_border_color", "title_font_color", "footnote_font_color",
-                "heatmap_low_color", "heatmap_middle_color", "heatmap_high_color")
+    colors <- c("header_back_color", "header_font_color", "header_border_color", "subheader_back_color", "subheader_font_color",
+                "subheader_border_color", "cat_col_back_color", "cat_col_font_color", "cat_col_border_color", "table_back_color",
+                "table_font_color", "table_border_color", "box_back_color", "box_font_color", "box_border_color", "title_font_color",
+                "footnote_font_color", "heatmap_low_color", "heatmap_middle_color", "heatmap_high_color")
 
     # Loop through passed arguments and check if they are of valid type
     for (style_option in names(style_list)){
@@ -192,6 +192,8 @@ close_file <- function(){
 #' [set_variable_labels()]: Can set variable labels globally so that they don't
 #' have to be provided in every output function separately.
 #'
+#' @param ... [set_variable_labels()]: Put in the variable names and their respective labels.
+#'
 #' @return
 #' [set_variable_labels()]: List of variable labels.
 #'
@@ -259,6 +261,8 @@ get_variable_labels <- function(){
 #' [set_stat_labels()]: Can set statistic labels globally so that they don't
 #' have to be provided in every output function separately.
 #'
+#' @param ... [set_stat_labels()]: Put in the statistics and their respective labels.
+#'
 #' @return
 #' [set_stat_labels()]: List of statistic labels.
 #'
@@ -322,7 +326,7 @@ get_stat_labels <- function(){
 #' [set_print()]: Set the print option globally for the tabulation and export to
 #' Excel functions.
 #'
-#' @param ... Put in TRUE or FALSE to activate or deactivate the option.
+#' @param ... [set_print()]: Put in TRUE or FALSE to activate or deactivate the option.
 #'
 #' @return
 #' [set_print()]: Changed global print option.
@@ -385,6 +389,8 @@ get_print <- function(){
 #' [set_monitor()]: Set the monitor option globally for the heavier functions which are
 #' able to show how they work internally.
 #'
+#' @param ... [set_monitor()]: Put in TRUE or FALSE to activate or deactivate the option.
+#'
 #' @return
 #' [set_monitor()]: Changed global monitor option.
 #'
@@ -446,6 +452,8 @@ get_monitor <- function(){
 #' [set_na.rm()]: Set the na.rm option globally for each function which can remove
 #' NA values.
 #'
+#' @param ... [set_na.rm()]: Put in TRUE or FALSE to activate or deactivate the option.
+#'
 #' @return
 #' [set_na.rm()]: Changed global na.rm option.
 #'
@@ -501,11 +509,76 @@ get_na.rm <- function(){
 }
 
 
+#' Set Global Print Missing Categories Option
+#'
+#' @description
+#' [set_print_miss()]: Set the print_miss option globally for each function which can display
+#' missing categories.
+#'
+#' @param ... [set_print_miss()]: Put in TRUE or FALSE to activate or deactivate the option.
+#'
+#' @return
+#' [set_print_miss()]: Changed global print_miss option.
+#'
+#' @examples
+#' set_print_miss(TRUE)
+#' set_print_miss(FALSE)
+#'
+#' @rdname qol_options
+#'
+#' @export
+set_print_miss <- function(...){
+    # Translate ... into a list if possible
+    print_miss_option <- tryCatch({
+        # Force evaluation to see if it exists
+        unlist(list(...))
+    }, error = function(e) {
+        # Evaluation failed
+        NULL
+    })
+
+    if (is.null(print_miss_option)){
+        message(" X ERROR: Unknown object found. Global option remains unchanged.")
+        return(invisible(.qol_options[["print_miss"]]))
+    }
+
+    if (!is.logical(print_miss_option)){
+        message(" X ERROR: Print missing categories option can only be TRUE or FALSE. Global option remains unchanged.")
+        return(invisible(.qol_options[["print_miss"]]))
+    }
+
+    .qol_options[["print_miss"]] <- print_miss_option
+
+    invisible(.qol_options[["print_miss"]])
+}
+
+
+#' Get Global Print Missing Categories Option
+#'
+#' @description
+#' [get_print_miss()]: Get the globally stored print_miss option.
+#'
+#' @return
+#' [get_print_miss()]: TRUE or FALSE.
+#'
+#' @examples
+#' get_print_miss()
+#'
+#' @rdname qol_options
+#'
+#' @export
+get_print_miss <- function(){
+    .qol_options[["print_miss"]]
+}
+
+
 #' Set Global Output Option
 #'
 #' @description
 #' [set_output()]: Set the output option globally for each function that can output
 #' results to "console", "text", "excel" or "excel_nostyle".
+#'
+#' @param ... [set_print_miss()]: Input option to set global output style.
 #'
 #' @return
 #' [set_output()]: Changed global output option.
@@ -571,6 +644,8 @@ get_output <- function(){
 #' @description
 #' [set_titles()]: Set the titles globally for each function that can print titles
 #' above the output table.
+#'
+#' @param ... [set_titles()]: Put in the titles that should appear above tables.
 #'
 #' @return
 #' [set_titles()]: Changed global titles.
@@ -638,6 +713,8 @@ get_titles <- function(){
 #' @description
 #' [set_footnotes()]: Set the footnotes globally for each function that can print footnotes
 #' above the output table.
+#'
+#' @param ... [set_footnotes()]: Put in the footnotes that should appear below tables.
 #'
 #' @return
 #' [set_footnotes()]: Changed global footnotes.
@@ -715,12 +792,13 @@ get_footnotes <- function(){
 #'
 #' @export
 reset_qol_options <- function(){
-    .qol_options[["print"]]     <- TRUE
-    .qol_options[["monitor"]]   <- FALSE
-    .qol_options[["na.rm"]]     <- FALSE
-    .qol_options[["output"]]    <- "console"
-    .qol_options[["titles"]]    <- c()
-    .qol_options[["footnotes"]] <- c()
+    .qol_options[["print"]]      <- TRUE
+    .qol_options[["monitor"]]    <- FALSE
+    .qol_options[["na.rm"]]      <- FALSE
+    .qol_options[["print_miss"]] <- FALSE
+    .qol_options[["output"]]     <- "console"
+    .qol_options[["titles"]]     <- c()
+    .qol_options[["footnotes"]]  <- c()
 
     invisible(.qol_options)
 }

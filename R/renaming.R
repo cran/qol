@@ -140,7 +140,7 @@ add_extension <- function(data_frame,
         return(data_frame)
     }
 
-    if (from > ncol(data_frame)){
+    if (from > collapse::fncol(data_frame)){
         message(" X ERROR: From is greater than number of columns in data frame. Adding extensions will be aborted.")
         return(data_frame)
     }
@@ -210,23 +210,25 @@ replace_except <- function(vector,
                            pattern,
                            replacement,
                            exceptions = NULL){
-    # Replace the pattern in the exceptions with a pseudo symbol
-    except_replace <- gsub(pattern, "&%!", exceptions)
+    # If there are no exceptions just do a normal replace
+    if (is.null(exceptions) || length(exceptions) == 0){
+        return(gsub(pattern, replacement, vector))
+    }
+
+    # Replace pattern first in exceptions globally
+    placeholder      <- "&%!"
+    except_protected <- gsub(pattern, placeholder, exceptions, fixed = TRUE)
 
     # Protect exceptions in original vector
-    for (element in seq_along(vector)){
-        for (exception in seq_along(exceptions)){
-            vector[[element]] <- gsub(exceptions[[exception]],
-                                      except_replace[[exception]],
-                                      vector[[element]])
-        }
+    for (i in seq_along(exceptions)){
+        vector <- gsub(exceptions[i], except_protected[i], vector, fixed = TRUE)
     }
 
     # Replace pattern safely
     vector <- gsub(pattern, replacement, vector)
 
     # Reestablish protected pattern
-    gsub("&%!", pattern, vector)
+    gsub(placeholder, pattern, vector, fixed = TRUE)
 }
 
 
@@ -266,8 +268,8 @@ rename_multi <- function(data_frame, ...){
     })
 
     if (is.null(rename_list)){
-        message('X ERROR: Unknown object found. Provide variables in quotation marks, like: "old_var" = "new_var".\n",
-                "         Renaming will be aborted.')
+        message('X ERROR: Unknown object found. Provide variables in quotation marks, like: "old_var" = "new_var".\n',
+                "         Renaming will be aborted.")
         return(data_frame)
     }
 
