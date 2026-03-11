@@ -1,3 +1,50 @@
+# qol 1.2.2
+
+### New functions
+
+* `round_values()`: Rounds values according to the round half up rule. (20.02.2026)
+
+### New functionality
+
+* `any_table()`: Added `row_pct` and `col_pct` keywords to `pct_group` parameter. With this the function can calculate total percentages for rows and columns regardless of the respective other dimension. (21.02.2026)
+* `rename_multi()`: Variable names can now be passed without quotation marks. (28.02.2026)
+* `any_table()`: Percentages based on single formatted variable expressions can now be computed with the `pct_value` parameter. (05.03.2026)
+* `any_table()`: If the `pct_value` or `pct_group` parameters are used but are not part of the statistics parameter, they will be automatically added to statistics. (05.03.2026)
+* `dummy_data()`: Reworked the dummy data generation in mutliple ways:
+	* Added new variables: NUTS2, NUTS3, number_of_persons, body_height, body_weight, income_class, expenses, balance. (09.03.2026)
+	* Now generates up to five years. (09.03.2026)
+	* Variables are now sorted by year, state, household_id, person_id. (09.03.2026)
+	* household_id is now numbered individually within each state. (09.03.2026)
+	* Weights now adapt to the number of observations so that weighted results stay roughly the same. (09.03.2026)
+	* Brought variety in most of the variables so that different distributions aren't evenly spread anymore. (09.03.2026)
+	* Adding NA values is now optional. (09.03.2026)
+
+### Changed functionality
+
+* `frequencies()`, `crosstabs()`, `any_table()`, `content_report()`: Now uses round half up rule for rounding values. (20.02.2026)
+
+### Fixed
+
+* `any_table()`: When there was an NA value in the first table column while the row label column was deleted, the NA symbol wasn't set. This is fixed now. (12.02.2026)
+* `any_table()`: If the custom NA symbol is set to a number, Excels number stored as text error is now ignored. (12.02.2026)
+* `transpose_plus()`: Took out a debug print I forgot in the function. (12.02.2026)
+* `summarise_plus()`: Fixed formats not matching data when computing percentages, if numeric values are stored as character. (18.02.2026)
+* `if.()`, `else_if.()`, `else.()`: When passing a vector to a new variable, the functions don't error any more if there are NA values. (22.02.2026)
+* `summarise_plus()`: Fixed "." in a variable expression is now preserved as intended. (09.03.2026)
+* `frequencies()`: When by variables were used the first by expression was omitted. This is fixed now. (09.03.2026)
+
+### Optimization
+
+* `dummy_data()`: Got rid of the loop for generating multiple years at random. Now the dummy data is based on a smaller set of observations, which allows faster variable generation. Years are only added as cartesian product at the end and values altered per year. This allowed the rework mentioned above: More variables and more variety in the same amount of time as before. (09.03.2026)
+
+### New Error Checks
+
+* `any_table()`: Added an error check in case all calculations are done and no value variable was computed. (05.03.2026)
+
+### Additionally
+
+* `frequencies()`: Fixed two of the examples where `list` was missing in formats parameter. (14.02.2026)
+
 # qol 1.2.1
 
 ### New functions
@@ -21,7 +68,7 @@
 * `retain_variables()`: The ":" can now be used as a placeholder for "starts with" ("text:"), "ends with" (":text") and "contains" (":text:"). (15.01.2026)
 * `excel_output_style()`: New `subheader` parameters which come into play when setting the `by_as_subheaders` to TRUE when using `any_table()`. The parameters can also be set as global option. (18.01.2026)
 * `any_table()`: When using by variables with the new styling option `by_as_subheaders` the tables aren't split among multiple sheets, instead the by variable expressions are used as subheaders in one big table. (18.01.2026)
-* `summarise_plus`, `any_table()`, `crosstabs()`: `statistics` parameter can now be passed without quotation marks. (11.02.2026)
+* `summarise_plus()`, `any_table()`, `crosstabs()`: `statistics` parameter can now be passed without quotation marks. (11.02.2026)
 * `any_table()`: `pct_group` parameter can now be passed without quotation marks. (11.02.2026)
 
 ### Changed functionality

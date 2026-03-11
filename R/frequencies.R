@@ -90,14 +90,13 @@
 #'     "Male"   = 1,
 #'     "Female" = 2)
 #'
-#' my_data |> frequencies(sex,
-#'                        formats   = (sex = sex.))
+#' my_data |> frequencies(sex, formats = list(sex = sex.))
 #'
 #' # Split frequencies by expressions of another variable
 #' my_data |> frequencies(sex, by = education)
 #'
 #' # Get a list with two data tables for further usage
-#' result_list <- my_data |> frequencies(sex, formats = (sex = sex.))
+#' result_list <- my_data |> frequencies(sex, formats = list(sex = sex.))
 #'
 #' # Output in text file
 #' my_data |> frequencies(sex, output = "text")
@@ -503,6 +502,7 @@ format_number <- function(number,
                           width,
                           stat,
                           decimals = 1){
+    number <- unlist(number)
 
     # Format numbers to make them more readable
     if (stat %in% c("freq", "miss", "var_freq", "var_cum_freq")){
@@ -514,7 +514,7 @@ format_number <- function(number,
                                 nsmall       = 0)
     }
     else if (stat %in% c("min", "max")){
-        output_format <- format(round(number, decimals),
+        output_format <- format(round_values(number, decimals),
                                 format       = "d",
                                 decimal.mark = ",",
                                 big.mark     = ".",
@@ -522,7 +522,7 @@ format_number <- function(number,
     }
     # Any other stat with decimal numbers
     else{
-        output_format <- format(round(number, decimals),
+        output_format <- format(round_values(number, decimals),
                                 format       = "f",
                                 decimal.mark = ",",
                                 big.mark     = ".",
@@ -577,7 +577,7 @@ get_column_width <- function(data_frame,
         # Any other stat with decimal numbers
         else{
             max_width <- max(max_width,
-                             collapse::vlengths(format(round(data_frame[[column]], decimals),
+                             collapse::vlengths(format(round_values(data_frame[[column]], decimals),
                                                       format     = "f",
                                                       big.mark   = ",",
                                                       scientific = FALSE,
@@ -732,10 +732,10 @@ format_mean_excel <- function(mean_tab,
 
     # Round values according to style options
     mean_tab <- mean_tab |>
-        collapse::fmutate(mean = round(mean, style[["number_formats"]][["mean_decimals"]]),
-                          sd   = round(sd,   style[["number_formats"]][["sd_decimals"]]),
-                          min  = round(min,  style[["number_formats"]][["min_decimals"]]),
-                          max  = round(max,  style[["number_formats"]][["max_decimals"]]))
+        collapse::fmutate(mean = round_values(mean, style[["number_formats"]][["mean_decimals"]]),
+                          sd   = round_values(sd,   style[["number_formats"]][["sd_decimals"]]),
+                          min  = round_values(min,  style[["number_formats"]][["min_decimals"]]),
+                          max  = round_values(max,  style[["number_formats"]][["max_decimals"]]))
 
     # Build header row
     header     <- c("variable", mean_columns)
@@ -1126,10 +1126,10 @@ format_freq_excel <- function(wb,
 
         # Round values according to style options
         var_tab <- var_tab |>
-            collapse::fmutate(var_sum     = round(var_sum,     style[["number_formats"]][["sum_decimals"]]),
-                              var_cum_sum = round(var_cum_sum, style[["number_formats"]][["sum_decimals"]]),
-                              pct_group   = round(pct_group,   style[["number_formats"]][["pct_decimals"]]),
-                              var_cum_pct = round(var_cum_pct, style[["number_formats"]][["pct_decimals"]]))
+            collapse::fmutate(var_sum     = round_values(var_sum,     style[["number_formats"]][["sum_decimals"]]),
+                              var_cum_sum = round_values(var_cum_sum, style[["number_formats"]][["sum_decimals"]]),
+                              pct_group   = round_values(pct_group,   style[["number_formats"]][["pct_decimals"]]),
+                              var_cum_pct = round_values(var_cum_pct, style[["number_formats"]][["pct_decimals"]]))
 
         # If no weight variable was applied
         if (identical(var_tab[["var_sum"]], var_tab[["var_freq"]])){
@@ -1352,7 +1352,7 @@ format_by_text <- function(mean_tab,
 
         # Extract unique values
         if (anyNA(freq_by[["by_vars"]])){
-            values <- c(collapse::funique(collapse::na_omit(freq_by[["by_vars"]]))[-1], NA)
+            values <- c(collapse::funique(collapse::na_omit(freq_by[["by_vars"]])), NA)
         }
         else{
             values <- collapse::funique(freq_by[["by_vars"]])
@@ -1509,7 +1509,7 @@ format_by_excel <- function(mean_tab,
 
         # Extract unique values
         if (anyNA(freq_by[["by_vars"]])){
-            values <- c(collapse::funique(collapse::na_omit(freq_by[["by_vars"]]))[-1], NA)
+            values <- c(collapse::funique(collapse::na_omit(freq_by[["by_vars"]])), NA)
         }
         else{
             values <- collapse::funique(freq_by[["by_vars"]])

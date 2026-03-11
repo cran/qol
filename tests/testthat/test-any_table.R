@@ -40,7 +40,7 @@ test_that("Simplest form of any_table", {
     expect_equal(length(result_list), 3)
     expect_equal(names(result_list[[1]]), c("row.label", "var1", "weight_sum_1",
                                             "weight_sum_2", "weight_sum_NA"))
-    expect_equal(result_list[[1]][["var1"]], c(paste0(0:99), "."))
+    expect_equal(result_list[[1]][["var1"]][1:90], as.character(0:89))
 })
 
 
@@ -62,6 +62,7 @@ test_that("any_table with multiple combinations", {
           any_table(rows    = c("age", "age + education"),
                     columns = c("sex + year", "sex"),
                     values  = weight,
+                    output  = "excel_nostyle",
                     print   = FALSE))
 
     expect_type(result_list, "list")
@@ -75,6 +76,7 @@ test_that("any_table many combinations don't break", {
                                   "state + age", "education + age"),
                       columns = c("year", "sex + year", "sex"),
                       values  = weight,
+                      output  = "excel_nostyle",
                       print   = FALSE))
 
     expect_type(result_list, "list")
@@ -128,13 +130,29 @@ test_that("any_table with different percentages", {
           any_table(rows       = "age",
                     columns    = "sex",
                     values     = c(probability, weight),
-                    statistics = c("sum", "pct_group", "pct_total", "pct_value"),
+                    statistics = c("sum", "pct_total"),
                     pct_group  = c("age", "sex"),
-                    pct_value  = list(rate = "probability / weight"),
+                    pct_value  = list(rate = "probability / weight",
+                                      sex  = 1),
                     print      = FALSE))
 
     expect_true(all(c("weight_pct_group_age_1", "weight_pct_total_1",
-                      "rate_pct_value_1") %in% names(result_list[["table"]])))
+                      "rate_pct_value_1", "sex_pct_value_1") %in% names(result_list[["table"]])))
+})
+
+
+test_that("any_table with keywords for row and column percentages", {
+    result_list <- suppressMessages(dummy_df |>
+            any_table(rows       = "age",
+                      columns    = "sex",
+                      values     = c(probability, weight),
+                      statistics = c("pct_group"),
+                      pct_group  = c("row_pct", "col_pct"),
+                      print      = FALSE))
+
+    expect_true(all(c("weight_pct_group_row_1", "probability_pct_group_row_2",
+                      "weight_pct_group_col_1", "probability_pct_group_col_2")
+                    %in% names(result_list[["table"]])))
 })
 
 
@@ -160,6 +178,7 @@ test_that("any_table with interleaved order", {
                       values     = weight,
                       statistics = c("sum", "freq", "missing"),
                       order_by   = "interleaved",
+                      output     = "excel_nostyle",
                       print      = FALSE))
 
     expect_equal(names(result_list[[1]]),
@@ -170,38 +189,49 @@ test_that("any_table with interleaved order", {
 
 
 test_that("any_table with values order", {
+    year_current <- as.integer(format(Sys.Date(), "%Y"))
+
     result_list <- suppressMessages(dummy_df |>
+            collapse::fsubset(year < year_current) |>
             any_table(rows       = "age",
                       columns    = c("sex", "year"),
                       values     = c(weight, income),
                       statistics = "sum",
                       order_by   = "values",
+                      output     = "excel_nostyle",
                       print      = FALSE))
-
-    year <- as.integer(format(Sys.Date(), "%Y"))
 
     expect_equal(names(result_list[[1]]),
                  c("row.label", "var1", "weight_sum_1", "weight_sum_2", "weight_sum_NA",
-                   paste0("weight_sum_", year - 2), paste0("weight_sum_", year - 1), "income_sum_1", "income_sum_2",
-                   "income_sum_NA", paste0("income_sum_", year - 2), paste0("income_sum_", year - 1)))
+                   paste0("weight_sum_", year_current - 4), paste0("weight_sum_", year_current - 3),
+                   paste0("weight_sum_", year_current - 2), paste0("weight_sum_", year_current - 1),
+                   "income_sum_1", "income_sum_2", "income_sum_NA", paste0("income_sum_", year_current - 4),
+                   paste0("income_sum_", year_current - 3), paste0("income_sum_", year_current - 2),
+                   paste0("income_sum_", year_current - 1)))
 })
 
 
 test_that("any_table with columns order", {
+    year_current <- as.integer(format(Sys.Date(), "%Y"))
+
     result_list <- suppressMessages(dummy_df |>
+            collapse::fsubset(year < year_current) |>
             any_table(rows       = "age",
                       columns    = c("sex", "year"),
                       values     = c(weight, income),
                       statistics = "sum",
                       order_by   = "columns",
+                      output     = "excel_nostyle",
                       print      = FALSE))
-
-    year <- as.integer(format(Sys.Date(), "%Y"))
 
     expect_equal(names(result_list[[1]]),
                  c("row.label", "var1", "weight_sum_1", "weight_sum_2", "weight_sum_NA",
-                   "income_sum_1", "income_sum_2", "income_sum_NA", paste0("weight_sum_", year - 2),
-                   paste0("weight_sum_", year - 1), paste0("income_sum_", year - 2), paste0("income_sum_", year - 1)))
+                   "income_sum_1", "income_sum_2", "income_sum_NA",
+                   paste0("weight_sum_", year_current - 4), paste0("weight_sum_", year_current - 3),
+                   paste0("weight_sum_", year_current - 2), paste0("weight_sum_", year_current - 1),
+                   paste0("income_sum_", year_current - 4),
+                   paste0("income_sum_", year_current - 3), paste0("income_sum_", year_current - 2),
+                   paste0("income_sum_", year_current - 1)))
 })
 
 
@@ -238,6 +268,7 @@ test_that("any_table with by variables and multiple row and column variables", {
                      values  = weight,
                      by      = year,
                      print   = FALSE,
+                     output  = "excel_nostyle",
                      na.rm   = TRUE)
 
     expect_true("BY" %in% names(result_list[["table"]]))
@@ -686,10 +717,10 @@ test_that("any_table outputs sum values with only invalid pct_value statistic an
 
 test_that("any_table aborts with missing variable combination in pre summarised data", {
     expect_message(result_list <- sum_df2 |>
-           any_table(rows       = c("year", "age"),
-                     columns    = "sex",
-                     values     = weight_sum,
-                     print      = FALSE), " X ERROR: The variable combination of '")
+           any_table(rows    = c("year", "age"),
+                     columns = "sex",
+                     values  = weight_sum,
+                     print   = FALSE), " X ERROR: The variable combination of '")
 })
 
 
@@ -705,5 +736,22 @@ test_that("Combine tables into a single workbook aborts, if any not any_table ob
 
     expect_true(!file.exists(temp_file))
 })
+
+
+test_that("any_table aborts with no valid values after calculating the results", {
+    errors <- testthat::capture_messages(result_list <- dummy_df |>
+           any_table(rows       = "year",
+                     columns    = "sex",
+                     values     = weight,
+                     statistics = "pct_value",
+                     pct_value  = list(sex = "test",
+                                       age = "test"),
+                     print      = FALSE))
+
+    expect_true(any(grepl(" ! WARNING: Variable 'age' not found in the data frame.", errors)))
+    expect_true(any(grepl(" ! WARNING: Subsetting variable 'sex' by 'test' results in an empty data frame.", errors)))
+    expect_true(any(grepl(" X ERROR: After calculating the results, there are no valid values.", errors)))
+})
+
 
 set_style_options(as_heatmap = FALSE)
