@@ -7,7 +7,7 @@
 transpose_plus(
   data_frame,
   preserve = NULL,
-  pivot,
+  pivot = NULL,
   values = NULL,
   formats = c(),
   weight = NULL,
@@ -20,7 +20,7 @@ transpose_plus(
 
 \item{preserve}{Variables to keep and preserve in their current form.}
 
-\item{pivot}{A vector that provides the expressions of single variables or od
+\item{pivot}{A vector that provides the expressions of single variables or
 variable combinations that should be transposed. To nest variables use the form:
 "var1 + var2 + var3 + ...".}
 

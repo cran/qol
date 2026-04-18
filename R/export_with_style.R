@@ -23,7 +23,8 @@
 #' as is into a styled table.
 #'
 #' @return
-#' Returns a formatted 'Excel' workbook.
+#' Returns a list with the data table containing the results for the table, the formatted
+#' 'Excel' workbook and the meta information needed for styling the final table.
 #'
 #' @seealso
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
@@ -31,24 +32,33 @@
 #'
 #' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
 #'
+#' Other global options: [set_titles()], [set_footnotes()], [set_print()], [set_monitor()],
+#' [set_na.rm()], [set_print()], [set_print_miss()], [set_output()].
+#'
+#' Combine Excel workbooks: [combine_into_workbook()].
+#'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()].
 #'
 #' @examples
 #' # Example data frame
-#' my_data <- dummy_data(1000)
+#' my_data <- dummy_data(100)
 #'
 #' # Define style
 #' set_style_options(column_widths = c(2, 15, 15, 15, 9))
 #'
 #' # Define titles and footnotes. If you want to add hyperlinks you can do so by
-#' # adding "link:" followed by the hyperlink to the main text.
-#' set_titles("This is title number 1 link: https://cran.r-project.org/",
-#'            "This is title number 2",
-#'            "This is title number 3")
+#' # adding "link:" followed by the hyperlink to the main text. Linking to another
+#' # cell works with "cell:". To link to a file use "file:" an pass the full file
+#' # path afterwards.
+#' set_titles("This is title number 1",
+#'            "This is title number 2 link: https://cran.r-project.org/",
+#'            "This is title number 3 cell: W22",
+#'            "This is title number 4 file: C:/MyFolder/MyFile.txt")
 #'
 #' set_footnotes("This is footnote number 1",
-#'               "This is footnote number 2",
-#'               "This is footnote number 3 link: https://cran.r-project.org/")
+#'               "This is footnote number 2 file: C:/MyFolder/MyFile.txt",
+#'               "This is footnote number 3 cell: W22",
+#'               "This is footnote number 4 link: https://cran.r-project.org/")
 #'
 #' # Print styled data frame
 #' my_data |> export_with_style()
@@ -61,12 +71,35 @@
 #' # Example files paths
 #' table_file <- tempfile(fileext = ".xlsx")
 #'
-#' # Note: Normally you would directly input the path ("C:/MyPath/") and name ("MyFile.xlsx").
+#' # Note: Normally you would directly input the path ("C:/MyPath/") and
+#' #       name ("MyFile.xlsx").
+#' #       With the set_style_options you can also set a table style globally.
 #' set_style_options(save_path  = dirname(table_file),
 #'                   file       = basename(table_file),
 #'                   sheet_name = "MyTable")
 #'
 #' my_data |> export_with_style()
+#'
+#' # In case you have a good amount of tables, you want to combine in a single
+#' # workbook, you can also catch the outputs and combine them afterwards in one go.
+#' set_style_options(sheet_name = "sheet1")
+#' tab1 <- my_data |> export_with_style(print = FALSE)
+#'
+#' set_titles(NULL)
+#' set_style_options(sheet_name = "sheet2")
+#' tab2 <- my_data |> export_with_style(print = FALSE)
+#'
+#' set_footnotes(NULL)
+#' set_style_options(sheet_name = "sheet3")
+#' tab3 <- my_data |> export_with_style(print = FALSE, output = "excel_nostyle")
+#'
+#' # Every of the above tabs is a list, which contains the data table, an unstyled
+#' # workbook and the meta information needed for the individual styling. These tabs
+#' # can be input into the following function, which reads the meta information,
+#' # styles each table individually and combines them as separate sheets into a
+#' # single workbook.
+#' combine_into_workbook(tab1, tab2, tab3)
+#' combine_into_workbook(tab1, tab2, tab3, file = table_file)
 #'
 #' # Manual cleanup for example
 #' unlink(table_file)
@@ -87,7 +120,8 @@ export_with_style <- function(data_frame,
                               output     = .qol_options[["output"]],
                               print      = .qol_options[["print"]],
                               monitor    = .qol_options[["monitor"]]){
-    start_time <- Sys.time()
+    print_start_message()
+	print_step("GREY", "Error handling")
 
     #-------------------------------------------------------------------------#
     monitor_df <- NULL |> monitor_start("Error handling", "Error handling")
@@ -104,7 +138,7 @@ export_with_style <- function(data_frame,
 
     # Check for invalid output option
     if (!tolower(output) %in% c("excel", "excel_nostyle")){
-        message(" ! WARNING: <Output> format '", output, "' not available. Using 'excel' instead.")
+        print_message("WARNING", "<Output> format '[output]' not available. Using 'excel' instead.", output = output)
 
         output <- "excel"
     }
@@ -124,6 +158,10 @@ export_with_style <- function(data_frame,
     # Prepare table format for output
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+    # Grab all information, which is necessary to format the workbook. This list will be
+    # returned at the end and can be grabbed by the workbook combine function.
+    meta <- c(mget(c("titles", "footnotes", "var_labels", "style", "output")), "DATA")
+
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Excel prepare", "Format")
     #-------------------------------------------------------------------------#
@@ -131,12 +169,12 @@ export_with_style <- function(data_frame,
     # Setup styling in new workbook if no other is provided
     if (is.null(workbook)){
         workbook <- openxlsx2::wb_workbook() |>
-            prepare_styles(style)
+            prepare_styles(list("title" = titles, "footnote" = footnotes), style)
     }
     # Update style options in provided workbook
     else{
         workbook <- workbook |>
-            prepare_styles(style)
+            prepare_styles(list("title" = titles, "footnote" = footnotes), style)
     }
 
     monitor_df <- monitor_df |> monitor_end()
@@ -156,7 +194,7 @@ export_with_style <- function(data_frame,
         #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Output tables", "Output tables")
         #---------------------------------------------------------------------#
-        message(" > Output")
+        print_step("MAJOR", "Output")
 
         # If no save path or file provided just open workbook
         if (is.null(style[["save_path"]]) || is.null(style[["file"]])){
@@ -167,7 +205,7 @@ export_with_style <- function(data_frame,
         else{
             # If no save path or file provided just open workbook
             if (!file.exists(style[["save_path"]])){
-                message(" ! WARNING: Path does not exist: ", style[["save_path"]])
+                print_message("WARNING", "Path does not exist: [style]", style = style[["save_path"]])
 
                 if (interactive()){
                     wb$open()
@@ -180,15 +218,16 @@ export_with_style <- function(data_frame,
         }
     }
 
-    end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
-    message("\n- - - 'export_with_style' execution time: ", end_time, " seconds\n")
+    print_closing(5)
 
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_end()
     monitor_df |> monitor_plot(draw_plot = monitor)
     #-------------------------------------------------------------------------#
 
-    invisible(wb)
+    invisible(list("table"    = data_frame,
+                   "workbook" = wb,
+                   "meta"     = meta))
 }
 
 
@@ -245,7 +284,7 @@ format_df_excel <- function(wb,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Excel data", "Format")
     #-------------------------------------------------------------------------#
-    message(" > Writing data to workbook")
+    print_step("MAJOR", "Writing data to workbook")
 
     wb$add_data(x           = data_frame,
                 start_col   = style[["start_column"]],
@@ -261,7 +300,7 @@ format_df_excel <- function(wb,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Excel titles/footnotes", "Format")
     #-------------------------------------------------------------------------#
-    message(" > Formatting data")
+    print_step("MAJOR", "Formatting data")
 
     # Format titles and footnotes if there are any
     wb <- wb |>
@@ -271,7 +310,6 @@ format_df_excel <- function(wb,
     # option this whole part gets omitted to get a very quick unformatted
     # excel output.
     if (output == "excel"){
-        # Style table
         #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Excel cell styles", "Format")
         #---------------------------------------------------------------------#
@@ -287,6 +325,7 @@ format_df_excel <- function(wb,
                 wb$add_cell_style(dims                = df_ranges[[paste0("df_col_ranges", i)]],
                                   apply_number_format = TRUE,
                                   num_fmt_id          = wb$styles_mgr$get_numfmt_id(paste0(df_ranges[[paste0("df_col_types", i)]], "_numfmt")))
+                wb$add_ignore_error(dims = df_ranges[[paste0("df_col_ranges", i)]], number_stored_as_text = TRUE)
             }
         }
 
@@ -359,19 +398,8 @@ set_labels_as_names <- function(data_frame, var_labels){
         return(data_frame)
     }
 
-    # Loop through all provided labels
-    for (i in seq_along(var_labels)){
-        name  <- names(var_labels)[i]
-        label <- var_labels[[i]]
-
-        # Omit label with missing variable name
-        if (is.null(name) || name == ""){
-            next
-        }
-
-        # Replace variable texts with provided labels
-        names(data_frame) <- gsub(name, label, names(data_frame))
-    }
-
-    data_frame
+    collapse::frename(data_frame,
+                      stats::setNames(names(var_labels),
+                                      as.character(var_labels)),
+                      .nse = FALSE)
 }

@@ -1,3 +1,103 @@
+# qol 1.3.0
+
+### New functions
+
+* `row_calculation()`: Perform row wise calculations on numeric variables. (12.03.2026)
+* `do_if()`, `else_do()`, `end_do()`, `end_all_do()`: These functions create overarching filter variables. When used with functions capable of handling these filter variables, it is possible to create more readable if-blocks without writing the same condition over and over again. (21.03.2026)
+* `compute()`: Compute new variables without having to write the name of the data frame multiple times. (23.03.2026)
+* `save_file()`, `save_file_multi()`: Saves fst and rds files. Offers variable selection and observation subsetting. By default the function has a write protection, which has to be explicitly turned off to be able to overwrite files. (28.03.2026)
+* `load_file()`, `load_file_multi()`: Loads fst and rds files. Provided variables to keep are read in case insensitive and are returned in provided order. Additionally a subset can be defined directly. Loaded files in the multi version can be stacked or output as a list. (28.03.2026)
+* `set_threads()`, `get_threads()`: Globally sets/gets the number of used threads for the save and load file functions. (28.03.2026)
+* Base R message system:
+	* `print_message()`, `print_headline()`, `print_start_message()`, `print_closing()`, `print_step()`: Print out different messages with custom styling to the console. (09.04.2026)
+	* `get_message_stack()`: Get the global message stack for inspection. (09.04.2026)
+	* `set_no_print()`: Prevents messages being printed to the console globally. Can e.g. be used in unit test situations. (09.04.2026)
+	* `print_stack_as_messages()`: Print the global message stack as message, warning or error to be able to receive their signals. (09.04.2026)
+	* `convert_square_brackets()`: Transforms the format symbols (like {b}{/b}) into the actual console readable formattings. (09.04.2026)
+	* `set_up_custom_message()`: Sets up the basic items for a custom message. These custom types can be input into `print_message()` and `print_step()`. (13.04.2026)
+* `hex_to_256()`, `hex_to_ansi()`: Generate a 256-color 6x6x6 color cube and apply hex color and font weight to a text as ansi codes. (09.04.2026)
+* `round_multi()`: Rounds multiple variables at once inside a data frame. (09.04.2026)
+* `report_test_results()`, `test_package()`, `test_single_file()`: Print out tinytest results with custom reporting style. (15.04.2026)
+
+### New functionality
+
+* `if.()`, `else_if.()`: The ":" can now be used in conditions as a placeholder for "starts with" ("text:"), "ends with" (":text") and "contains" (":text:"). (21.03.2026)
+* `if.()`, `else_if.()`, `else.()`: All functions are now able to handle vectors in a do over loop. Meaning, that if using vectors in conditions or assignments, the functions will iterate over each vector simultaneously. (21.03.2026)
+* `if.()`, `else_if.()`, `else.()`: Can be used within the new `do_if()` context. (21.03.2026)
+* `if.()`, `else_if.()`, `else.()`: Since the functions now make use of the new `compute()`, they are able to do more than just simple variable assignments and can also perform calculations. (23.03.2026)
+* `row_calculation()`: Now has an optional rounding parameter. (23.03.2026)
+* `dummy_data()`: Added `weight_per_year` variable. (25.03.2026)
+* `build_master()`: Added `with_monitor` parameter, which allows to visualize the time consumption of the individual scripts. (26.03.2026)
+* `split_by()`: Now also outputs NA values. (29.03.2026)
+* `import_data()`, `import_multi()`, `export_data()`, `export_multi()`: Now can import and export csv files with file extension txt. (30.03.2026)
+* `round_values()`: Now is also able to round in multiples of a provided value. (09.04.2026)
+* `combine_into_workbook()`: Now can handle `export_with_style()` results. (10.04.2026)
+* `excel_output_style()`: Now accepts multiple title and footnote colors, sizes and boldings. (10.04.2026)
+* `excel_output_style()`: New option `header_stat_merging` determines how the statistic symbols or labels are merged in the column header. As a new standard the labels are now not fully merged but in blocks. (10.04.2026)
+* `if.()`: Observation selection now also works as do over loop. (12.04.2026)
+* `any_table()`: New parameter `pct_block` enables percentage calculation inside the respective second to last grouping of the row or column variables. (12.04.2026)
+* `any_table()`: If the result expression of a format starts with an "!", this expression will be used in calculations but will be dropped in the result table. This can be used to calculate block percentages based on a total expression without showing the total in the result table. (12.04.2026)
+* `any_table()`: Variable combinations in rows and columns can now also be passed like "state + (age sex education)", which results in "state + age", "state + sex", "state + education", with the addition that the results with the same root grouping will be sorted together concerning the row header variables. For the column sorting there is a new `order_by` option with "blocks" for that purpose. (12.04.2026)
+* `any_table()`: There are new special `var_labels`, which add additional top column headers. When assigning labels to variables that start with "block", e.g. "block1" = "Column Percentages", "block2" = "Row Percentages", these labels will appear as the top line of the column header. (12.04.2026)
+* `summarise_plus()`: Variable combinations in types can now also be passed like "state + (age sex education)", which results in "state + age", "state + sex", "state + education". (15.04.2026)
+* `frequencies()`, `crosstabs()`, `any_table()`, `export_with_style()`: Titles and footnotes can now also link to cells "cell:" and to files "file:". (15.04.2026)
+* `libname()`: Can now optionally filter file list by provided file extensions. (16.04.2026)
+* `set_style_options()`: Can now save the currently set global options to a rds file. (16.04.2026)
+* `get_style_options()`: Can now load a rds file and set the contents as global style options. (16.04.2026)
+
+### Changed functionality
+
+* `summarise_plus()`: Instead of aborting when no values are passed, the function now generates a variable to output unweighted results. (26.03.2026)
+* `Unit tests`: Moved unit tests completely from `testthat` to `tinytest`. `testthat` repeatedly got in the way with its own environment, `tinytest` offers more natural conditions and works faster. (31.01.2026)
+* `transpose_plus()`: Removed macro variable usage. (09.04.2026)
+* `export_with_style()`: Now returns a list with table, workbook and meta information, which can be used with `combine_into_workbook()`. (10.04.2026)
+* `build_master()`: Now only catches R-script files and ignores files of all other types. (16.04.2026)
+
+### Fixed
+
+* `any_table()`: Some examples had a too long running time. Additionally shortened the running time of unit tests by ignoring styling options in the larger tables. (11.03.2026)
+* `any_table()`: Fixed percentages based on single formatted variable expressions couldn't be computed with by variables. (11.03.2026)
+* `any_table()`: The column header wasn't put together correctly, if only multiple group percentages were computed. (11.03.2026)
+* `any_table()`: Excel number stored as text error is now ignored in general even if no styling is used. This was especially noticeable when generating tables with by variables and the `print_miss` option. (11.03.2026)
+* `any_table()`: Even if no styling is used the tables now all receive the named regions. (11.03.2026)
+* `any_table()`: Columns are now sorted correctly, if only row or column percentages are computed. (11.03.2026)
+* `dummy_data()`: Now cuts down observations by random sample instead of just the head, so that the cut expressions aren't lost completely. (11.03.2026)
+* `dummy_data()`: `balance` variable wasn't calculated correctly, which is now fixed. (12.03.2026)
+* `any_table()`, `combine_into_workbook()`: The `output` parameter wasn't stored in the meta information list which lead to `combine_into_workbook()` not able to access it and always output formatted tables. Now the `output` parameter is stored in meta information. (24.03.2026)
+* `build_master()`: Now ignores the root folder when building the script, to enable automatic rebuilding of the script. (26.03.2026)
+* `import_data()`: In the examples the file names to read in weren't correct. This is fixed now. (28.03.2026)
+* `split_by()`: Should now work inside custom functions. (29.03.2026)
+* `retain_value()`, `retain_sum()`: On error now return NA instead of the whole data frame. (31.01.2026)
+* `transpose_plus()`: Wide to long transposition now working again as intended. (09.04.2026)
+* `any_table()`: Without column variables each variable in the column header received a "_ " at the end, which is not the case anymore. (10.04.2026)
+* `sort_plus()`: When formats where used for sorting, the temporary sorting variables where always put up front instead of inserted in sequential order. This is fixed now. (10.04.2026)
+* `keep()`, `dropp()`: If a character pattern is used to keep or drop variables and no variable matching the pattern is found, the functions now abort with a warning. (12.04.2026)
+* `where.()`: Now aborts with a warning if no observations or variables are left in the data frame. (13.04.2026)
+* `export_with_style()`: Can now rename variables that have blanks in their name. (13.04.2026)
+* `summarise_plus()`, `frequencies()`, `crosstabs()`, `any_table()`: If an invalid format is passed, this now throws a warning instead of removing all formats silently. (14.04.2026)
+
+### Optimization
+
+* `if.()`, `else_if.()`, `else.()`: With the new `compute()` they now perform variable assignments and calculations in a single pass instead of per iteration. (23.03.2026)
+* `running_number()`: Now uses faster `data.table` function. (23.03.2026)
+* `round_values()`: Now uses vectorized math to reduce memory allocation. (23.03.2026)
+* `dummy_data()`: Reduced memory allocation. (25.03.2026)
+* `summarise_plus()`: When using factor or character variables in `class` parameter, the check to preserve "." is now executed on the unique values first and only mapped back to the data frame, if there are any replacements needed, instead of running a `gsub` every time over the whole vector. (28.03.2026)
+* `import_data()`, `import_multi()`: `import_data()` now also accepts a `openxlsx2` workbook as infile and not only a path to a workbook. This enables a massive performance boost for `import_multi()`, which now passes a workbook to `import_data()` instead of the file path. (28.03.2026)
+
+### Additionally
+
+* `any_table()`: `statistics` parameter is now NULL by default to enable group percentages to be computed on their own without sums. (11.03.2026)
+* Swapped out a variable in abort `split_by()` because of duplicates test, because the test didn't throw the expected error. This was a very rare error because of bad luck with the dummy_data sample. The function works as intended. (23.03.2026)
+* `any_table()`: Upped the dummy_data observations in tests to prevent rare errors. (23.03.2026)
+* `any_table()`: Omitted table formatting in some tests to make them run quicker. (24.03.2026)
+* `any_table()`, `frequencies()`, `crosstabs()`, `export_with_style()`: Added missing global options function in the `see also` section. (25.03.2026)
+* `import_multi()`, `export_multi()`: Added some messages to show progress. (28.03.2026)
+* Added repository to DeepWiki and added badge to README. (29.03.2026)
+* `any_table()`, `export_with_style()`: Added examples for `combine_into_workbook()`. (10.04.2026)
+* `any_table()`: When row header labels are suppressed, the excess slashes are now removed. (10.04.2026)
+* `compute()`: Now throws a warning, if duplicate variable names are used, but goes on computing the valid variables. (15.04.2026)
+
 # qol 1.2.2
 
 ### New functions
@@ -113,7 +213,7 @@
 
 * `any_table()`: Removed c() in examples where not necessary. (24.01.2026)
 * `if.()`: Now outputs a message on how many observations have been removed and how many are left. (27.01.2026)
-* `any_table()`, `combine_into_worbook()`: Adjusted examples. (02.02.2026)
+* `any_table()`, `combine_into_workbook()`: Adjusted examples. (02.02.2026)
 * `if.()`, `else_if.()`, `else.()`: If used inside a function, these functions should now be able to catch the original variable name passed into the parent function. (10.02.2026)
 * `content_report`: Added duplicate variable count to global information. (11.02.2026)
 
@@ -186,7 +286,7 @@ CRAN release on 13.01.2026
 * `summarise_plus()`: Group percentages with nesting = "all" or "single" and na.rm = TRUE are now computed as intended. (02.01.2026)
 * `handle_cell_styles()`: Set apply_font and font_id in a save way to prevent warnings. (04.01.2026, thanks to @JanMarvin)
 * `summarise_plus()`: Removed conversion to numeric values before applying formats, which could lead to not matching formats, if a numeric value was intentionally stored as character value. (07.01.2026)
-* `any_table()`: When na.rm was TRUE and many table cells where generated while only having few observations, it could happen that some combinations weren't generated and a result mismatch happend. Results are now joined instead of cbind together to be safe. (11.01.2026)
+* `any_table()`: When na.rm was TRUE and many table cells where generated while only having few observations, it could happen that some combinations weren't generated and a result mismatch happened. Results are now joined instead of cbind together to be safe. (11.01.2026)
 
 ### Optimization
 

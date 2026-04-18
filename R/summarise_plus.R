@@ -96,7 +96,7 @@
 #'     "Female" = 2)
 #'
 #' income. <- interval_format(
-#'     "Total"              = 0:99999,
+#'     "Total                   "  = 0:99999,
 #'     "below 500"          = 0:499,
 #'     "500 to under 1000"  = 500:999,
 #'     "1000 to under 2000" = 1000:1999,
@@ -152,6 +152,13 @@
 #'                    nesting    = "all",
 #'                    na.rm      = TRUE)
 #'
+#' # Works without grouping
+#' no_group <- my_data |> summarise_plus(values = income)
+#'
+#' # And also without values
+#' no_values  <- my_data |> summarise_plus(class = c(year, sex, age))
+#' no_nothing <- my_data |> summarise_plus()
+#'
 #' @export
 summarise_plus <- function(data_frame,
                            class      = NULL,
@@ -167,7 +174,8 @@ summarise_plus <- function(data_frame,
                            monitor    = .qol_options[["monitor"]],
                            notes      = TRUE){
     # Measure the time
-    start_time <- Sys.time()
+    print_start_message()
+    print_step("GREY", "Error handling")
 
     #-------------------------------------------------------------------------#
     monitor_df <- NULL |> monitor_start("Error handling", "Preparation")
@@ -186,6 +194,15 @@ summarise_plus <- function(data_frame,
     if (!is_list_of_dfs(formats)){
         formats_list <- as.list(substitute(formats))[-1]
         formats      <- evaluate_formats(formats_list)
+    }
+
+    # Remove empty formats and throw a warning. This can happen if there is e.g.
+    # a typo in the format.
+    for (variable in names(formats)){
+        if (is.null(formats[[variable]])){
+            formats[[variable]] <- NULL
+            print_message("WARNING", "Format for variable '[variable]' does not exist and can't be applied.", variable = variable)
+        }
     }
 
     # Look up variable names in format data frame to check whether there is an
@@ -213,8 +230,8 @@ summarise_plus <- function(data_frame,
 
     # Correct nesting option if not set right
     if (!nesting %in% c("deepest", "all", "single")){
-        message(" ! WARNING: <Nested> option '", nesting, "' doesn't exist. Options 'deepest', 'all' and 'single'\n",
-                "            are available. <Nested> will be set to 'deepest'.")
+        print_message("WARNING", c("<Nested> option '[nesting]' doesn't exist. Options 'deepest', 'all' and 'single'",
+								   "are available. <Nested> will be set to 'deepest'."), nesting = nesting)
         nesting <- "deepest"
     }
 
@@ -234,8 +251,8 @@ summarise_plus <- function(data_frame,
     # even if the user didn't set them up correctly
     if (merge_back){
         if (nesting != "deepest" || length(formats) > 0){
-            message(" ! WARNING: Merging variables back only works with nesting = 'deepest' and only without formats.\n",
-                    "            Options will be set accordingly.")
+            print_message("WARNING", c("Merging variables back only works with nesting = 'deepest' and only without formats.",
+									   "Options will be set accordingly."))
         }
 
         nesting <- "deepest"
@@ -268,10 +285,10 @@ summarise_plus <- function(data_frame,
                                                  "pct_group", "pct_total", paste0("p", 1:100))]
 
     if (length(invalid_stats) > 0){
-        message(" ! WARNING: <Statistic> '", invalid_stats, "' is invalid and will be omitted.")
+        print_message("WARNING", "<Statistic> '[invalid]' is invalid and will be omitted.", invalid = invalid_stats)
 
         if (length(selected_stats) == 0){
-            message(" ! WARNING: No valid <statistic> selected. 'sum' will be used.")
+            print_message("WARNING", "No valid <statistic> selected. 'sum' will be used.")
 
             statistics     <- "sum"
             requested      <- "sum"
@@ -304,8 +321,9 @@ summarise_plus <- function(data_frame,
     # If no value variables are provided abort
     if (length(values) <= 1){
         if (length(values) == 0 || values == ""){
-            message(" X ERROR: No <values> provided. Summarise will be aborted.")
-            return(invisible(NULL))
+            values               <- ".temp_values"
+            data_frame[[values]] <- 1
+            statistics           <- statistics[statistics != "sum"]
         }
     }
 
@@ -315,11 +333,6 @@ summarise_plus <- function(data_frame,
     # Make sure that the variables provided are part of the data frame.
     values <- data_frame |> part_of_df(values)
 
-    if (length(values) == 0){
-        message(" X ERROR: No <values> variables provided. Summarise will be aborted.")
-        return(invisible(NULL))
-    }
-
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Types
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -327,12 +340,22 @@ summarise_plus <- function(data_frame,
     # Enable the use of macro variables
     types <- apply_macro(types)
 
+    # Expand brackets first to be able to identify the unique variables used afterwards
+    types_expand <- expand_brackets(types)
+
+    if (types_expand[[2]]){
+        types <- names(types_expand[[1]])
+    }
+    else{
+        types_expand <- NULL
+    }
+
     # Get row variables from provided combinations
     type_vars <- unlist_variables(types)
 
     # If there are type provided
     if (is.null(type_vars)){
-        message(" ! WARNING: <Types> must be provided in quotation marks. Types will be ignored.")
+        print_message("WARNING", "<Types> must be provided in quotation marks. Types will be ignored.")
         types <- NULL
     }
     else if (length(type_vars) > 0){
@@ -341,16 +364,16 @@ summarise_plus <- function(data_frame,
         type_vars <- data_frame |> part_of_df(type_vars, check_only = TRUE)
 
         if (is.list(type_vars)){
-            message(" ! WARNING: The provided <type> '", paste(type_vars[[1]], collapse = ", "), "' is not part of\n",
-                    "            the data frame. Types will be ignored.")
+            print_message("WARNING", c("The provided <type> '[type_vars]' [?is/are] not part of",
+									   "the data frame. Types will be ignored."), type_vars = type_vars[[1]])
             types <- NULL
         }
 
         invalid_types <- type_vars[!type_vars %in% class]
 
         if (length(invalid_types) > 0){
-            message(" ! WARNING: The provided <type> '", paste(type_vars[[1]], collapse = ", "), "' is not part of\n",
-                    "            the <class> variables. Types will be ignored.")
+            print_message("WARNING", c("The provided <type> '[invalid]' [?is/are] not part of",
+									   "the <class> variables. Types will be ignored."), invalid = invalid_types)
             types <- NULL
         }
 
@@ -448,7 +471,7 @@ summarise_plus <- function(data_frame,
             data_frame <- collapse::na_omit(data_frame, cols = class)
         }
 
-        message("\n > Executing nested merge")
+        print_step("MAJOR", "Executing nested merge")
         get_group_missings(original_df[group_vars], notes, na.rm)
 
         if (!merge_back){
@@ -475,8 +498,7 @@ summarise_plus <- function(data_frame,
         }
         else{
             # Apply formats first
-            result_df <- data_frame |>
-                apply_format(formats, group_vars)
+            result_df <- data_frame |> apply_format(formats, group_vars)
 
             monitor_df <- monitor_df |> monitor_end()
 
@@ -551,7 +573,7 @@ summarise_plus <- function(data_frame,
         #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
         if (merge_back){
-            message("\n > Merging back")
+            print_step("MAJOR", "Merging back")
             #-----------------------------------------------------------------#
             monitor_df <- monitor_df |> monitor_next("Merge back", "Merge back")
             #-----------------------------------------------------------------#
@@ -564,7 +586,8 @@ summarise_plus <- function(data_frame,
                 collapse::join(result_df,
                                on      = group_vars,
                                how     = "left",
-                               verbose = FALSE) |>
+                               verbose = FALSE,
+                               overid  = 2) |>
                 dropp(".temp_weight")
         }
         # If formats are applied and all format categories schould be output
@@ -583,8 +606,8 @@ summarise_plus <- function(data_frame,
         all_results <- list()
         index <- 1
 
-        message("\n > Executing merge:\n",
-                "   + total")
+        print_step("MAJOR", "Executing merge:")
+        print_step("MINOR", "total")
 
         #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         # The results of all the possible combinations are computed one after
@@ -649,7 +672,7 @@ summarise_plus <- function(data_frame,
         # Compute percentages
         if ("pct_group" %in% statistics){
             # For compute percentages for every variable
-            for (i in seq_along(new_group_pct)) {
+            for (i in seq_along(new_group_pct)){
                 current_new_var <- new_group_pct[i]
 
                 total_df[[current_new_var]] <- 100
@@ -662,7 +685,7 @@ summarise_plus <- function(data_frame,
 
         if ("pct_total" %in% statistics){
             # For compute percentages for every variable
-            for (i in seq_along(new_total_pct)) {
+            for (i in seq_along(new_total_pct)){
                 current_new_var <- new_total_pct[i]
 
                 total_df[[current_new_var]] <- 100
@@ -687,11 +710,11 @@ summarise_plus <- function(data_frame,
         # triple, and so on.
         #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-        if (length(group_vars) > 0) {
+        if (length(group_vars) > 0){
 
             index <- index + 1
 
-            message("\n > Executing combination merge:")
+            print_step("MAJOR", "Executing combination merge:")
 
             for (i in seq_along(group_vars)){
                 # Generate every possible combination
@@ -747,7 +770,8 @@ summarise_plus <- function(data_frame,
                         }
                     }
 
-                    message("   + ", paste(combination, collapse = " + "))
+                    print_step("MINOR", paste(combination, collapse = " + "))
+
                     get_group_missings(original_df[combination], notes, na.rm)
 
                     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -927,7 +951,7 @@ summarise_plus <- function(data_frame,
         # Additional clean up
         #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-        message("\n > Putting results together")
+        print_step("MAJOR", "Putting results together")
 
         #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_start("Clean up", "Clean up")
@@ -966,8 +990,12 @@ summarise_plus <- function(data_frame,
         result_df <- result_df |> dropp(class)
     }
 
-    end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
-    message("\n- - - 'summarise_plus' execution time: ", end_time, " seconds\n")
+    if (flag_shortcut){
+        print_closing(3)
+    }
+    else{
+        print_closing(10)
+    }
 
     result_df
 }
@@ -1010,14 +1038,15 @@ get_complete_statistics_list <- function(statistics){
             prob <- as.numeric(sub("^p", "", stat_name)) / 100
 
             if (prob > 1){
-                message(" ! WARNING: Percentiles are only possible from p0 to p100. ", stat_name, " will be omited.")
+                print_message("WARNING", "Percentiles are only possible from p0 to p100. [stat_name] will be omitted.",
+                              stat_name = stat_name, always_print = TRUE)
                 next
             }
 
             # Define the function
             all_stats[[stat_name]] <- (function(prob){
                 force(prob)
-                function(x, w = NULL, g = NULL) {
+                function(x, w = NULL, g = NULL){
                     percentiles_qol(x, w, g, probs = prob)
                 }
             })(prob)
@@ -1076,10 +1105,30 @@ matrix_summarise <- function(data_frame,
     # are any additional dots in the level names, this leads to errors.
     for (column in group_vars){
         if (is.factor(data_frame[[column]])){
-            levels(data_frame[[column]]) <- gsub("\\.", "!!!", levels(data_frame[[column]]))
+            # Get unique values from the variable and replace "."
+            unique_values   <- collapse::funique(levels(data_frame[[column]]))
+            replaced_values <- gsub(".", "!!!", unique_values, fixed = TRUE)
+
+            # If original and replaced values are identical, the replacing on the larger
+            # vector can be skipped entirely to save time. Only if there was a replacement
+            # the whole vector has to be processed.
+            if (!identical(unique_values, replaced_values)){
+                levels(data_frame[[column]]) <- replaced_values
+            }
         }
         else if(is.character(data_frame[[column]])){
-            data_frame[[column]] <- gsub("\\.", "!!!", data_frame[[column]])
+            # Get unique values from the variable and replace "."
+            unique_values   <- collapse::funique(data_frame[[column]])
+            replaced_values <- gsub(".", "!!!", unique_values, fixed = TRUE)
+
+            # If original and replaced values are identical, the replacing on the larger
+            # vector can be skipped entirely to save time. Only if there was a replacement
+            # the whole vector has to be processed.
+            if (!identical(unique_values, replaced_values)){
+                replace_map <- stats::setNames(replaced_values, unique_values)
+
+                data_frame[[column]] <- replace_map[match(data_frame[[column]], unique_values)]
+            }
         }
     }
 
@@ -1164,7 +1213,7 @@ matrix_summarise <- function(data_frame,
     }
 
     if (length(names(restored_group)) > length(group_vars)){
-        message(" X ERROR: One of the grouping variables is not suited for grouping.")
+        print_message("ERROR", "One of the grouping variables is not suited for grouping.")
         restored_group <- restored_group[-2]
     }
 
@@ -1386,7 +1435,8 @@ print_missing <- function(data_frame,
                        on       = group_vars,
                        how      = "left",
                        multiple = TRUE,
-                       verbose  = FALSE) |>
+                       verbose  = FALSE,
+                       overid   = 2) |>
             dropp(".pseudo_join"))
 
     # Re apply automatically generated variables to get rid of NA values

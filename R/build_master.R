@@ -13,6 +13,8 @@
 #' should be written to the master script.
 #' @param with_run_folder Whether a section, which let's the user run all scripts from a
 #' specific folder, should be written to the master script.
+#' @param with_monitor FALSE by default. If TRUE, outputs two charts to visualize the
+#' time consumption of the individual scripts.
 #'
 #' @details
 #' The function works with folder structures that look like this:
@@ -62,13 +64,14 @@ build_master <- function(dir,
                          author          = "",
                          with_structure  = TRUE,
                          with_run_all    = TRUE,
-                         with_run_folder = TRUE){
+                         with_run_folder = TRUE,
+                         with_monitor    = FALSE){
     # Measure the time
-    start_time <- Sys.time()
+    print_start_message()
 
     # Check if folder exists
     if (!dir.exists(dir) || dirname(dir) == "."){
-        message(" X ERROR: Directory '", dir, "' does not exist.")
+        print_message("ERROR", "Directory '[dir]' does not exist.", dir = dir)
         return(invisible(NULL))
     }
 
@@ -77,9 +80,15 @@ build_master <- function(dir,
     # Get folders in provided directory
     folders <- list.dirs(dir, recursive = TRUE, full.names = TRUE)
 
+    # Remove root folder. Otherwise when rebuilding the master script, the root
+    # folder would be captured as folder with files in it.
+    if (length(folders) > 1){
+        folders <- folders[-1]
+    }
+
     # Get all .R scripts inside the folders
     scripts <- lapply(folders, function(folder){
-        libname(folder, get_files = TRUE)
+        suppressMessages(libname(folder, get_files = TRUE, extensions = "R"))
     })
     names(scripts) <- folders
     scripts        <- Filter(Negate(is.null), scripts)
@@ -96,6 +105,24 @@ build_master <- function(dir,
         "",
         "```{r load_package, echo = TRUE}",
         "library(qol)",
+        "",
+        "run_scripts <- function(scripts){",
+        "    print_start_message()",
+        '    monitor_df <- NULL |> monitor_start("Script start", "Script start")',
+        "",
+        "    for (file in scripts){",
+        '        monitor_df <- monitor_df |> monitor_next(basename(file), basename(file))',
+        '        print_step("MAJOR", file)',
+        "",
+        "        source(file, local = FALSE)",
+        "",
+        "        monitor_df <- monitor_df |> monitor_end()",
+        "    }",
+        "",
+        "    print_closing()",
+        "",
+        paste0("    monitor_df |> monitor_plot(draw_plot = ", with_monitor, ")"),
+        "}",
         "```",
         "")
 
@@ -118,39 +145,46 @@ build_master <- function(dir,
         "}",
         "",
         call_text,
+        "",
+        "rm(master_file)",
         "```",
         "")
 
     # Generate tree view folder structure
     if (with_structure){
-        message(" > Write folder structure")
+        print_step("MAJOR", "Write folder structure")
 
         lines <- c(lines, print_folder_structure(scripts), "")
     }
 
     # Run all scripts in all folders
     if (with_run_all){
-        message(" > Write all scripts execution")
+        print_step("MAJOR", "Write all scripts execution")
 
+        # Get blanks for an even padding of the code
+        sub_dirs        <- collapse::funique(sub(dir, "", names(scripts)))
+        max_path_length <- collapse::fmax(nchar(sub_dirs))
+        padding         <- substr(paste0(sub_dirs, strrep(" ", max_path_length)), nchar(sub_dirs) + 1, max_path_length)
+
+        # Put together script block
         run_all_folders <- c(
             "",
             "################################################################################",
             "# Run All Scripts in All Folders",
             "################################################################################",
             "```{r run_all_scripts, echo = TRUE}",
-            paste0('scripts <- c(', paste(paste0('libname("', names(scripts), '", get_files = TRUE)'), collapse = ',\n             '), ')'),
+            paste0('base_folder <- "', dir, '"'),
+            paste0('scripts     <- c(', paste(paste0('libname(paste0(base_folder,"', sub_dirs, '"), ', padding, 'get_files = TRUE, extensions = "R")'), collapse = ',\n                 '), ')'),
             "",
-            "for (file in scripts){",
-            "    source(file, local = FALSE)",
-            "}",
+            "run_scripts(scripts)",
             "",
-            "rm(scripts)",
+            "rm(base_folder, scripts)",
             "```")
 
         lines <- c(lines, run_all_folders)
     }
 
-    message(" > Write script execution")
+    print_step("MAJOR", "Write script execution")
 
     # Run folders and files separate
     for (folder in names(scripts)){
@@ -159,19 +193,18 @@ build_master <- function(dir,
         all_scripts_in_folder <- unlist(scripts[[folder]])
 
         if (with_run_folder){
-            message("   + folder: ", folder)
+            print_step("MINOR", "folder: [folder]", folder = folder)
 
+            # Put together script block
             lines <- c(lines, c("\n#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++",
                                 paste0("#     Run All Scripts in Folder: ", basename(folder)),
                                 "#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"),
                               paste0("```{r ", folder_name, ", echo = TRUE}"),
-                              paste0('      scripts <- libname("', folder, '", get_files = TRUE)'),
+                              paste0('      scripts <- libname("', folder, '", get_files = TRUE, extensions = "R")'),
                                 "",
-                                "      for (file in scripts){",
-                                "          source(file, local = FALSE)",
-                                "      }",
-                               "",
-                               "      rm(scripts)",
+                                "      run_scripts(scripts)",
+                                "",
+                                "      rm(scripts)",
                                 "```")
         }
 
@@ -179,26 +212,26 @@ build_master <- function(dir,
         files <- scripts[[folder]]
 
         for (file in files){
-            message("     + file: ", file)
+            print_step("MINOR", "    file: [file]", file = file)
 
             file_name <- gsub("[^a-zA-Z0-9_]", "_", paste0("run_", basename(file)))
 
+            # Put together script block
             lines <- c(lines, c("#-------------------------------------------------------------------------------#",
                                 paste0("#         Run Script: ", basename(file)),
                                 "#-------------------------------------------------------------------------------#"),
                               paste0("```{r ", file_name, ", echo = TRUE}"),
-                              paste0('          source("', file, '", local = FALSE)'),
+                              paste0('          run_scripts("', file, '")'),
                               "```")
         }
     }
 
-    message(" > Putting together master file")
+    print_step("MAJOR", "Putting together master file")
 
     # Write master file
     writeLines(lines, con = paste0(path, master_name, ".Rmd"))
 
-    end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
-    message("\n- - - 'build_master' execution time: ", end_time, " seconds\n")
+    print_closing(5)
 
     invisible(lines)
 }
@@ -215,7 +248,7 @@ build_master <- function(dir,
 #' A formatted character vector.
 #'
 #' @noRd
-print_folder_structure <- function(file_list) {
+print_folder_structure <- function(file_list){
     # Extract root folder
     root <- paste0(dirname(names(file_list)[1]), "/")
 

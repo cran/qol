@@ -1,3 +1,88 @@
+################################################################################
+# Export functions
+################################################################################
+#' Perform Row Wise Calculations
+#'
+#' @description
+#' Perform row wise calculations on numeric variables.
+#'
+#' @param data_frame A data frame in which are the values to be calculated.
+#' @param statistics Available functions: "sum", "freq", "mean", "median", "mode",
+#' "min", "max".
+#' @param ... Variable names of the value variables.
+#' @param round_digits The number of decimal places the values should be rounded to.
+#'
+#' @return
+#' Returns a numeric vector.
+#'
+#' @examples
+#' # Example data frame
+#' my_data <- data.frame(var1 = 1:5,
+#'                       var2 = c(6, 7, 8, NA, 10),
+#'                       var3 = 11:15)
+#'
+#' # Calculate new variables
+#' my_data[["sum"]]  <- my_data |> row_calculation("sum",  var1, var2, var3)
+#' my_data[["mean"]] <- my_data |> row_calculation("mean", var1:var3)
+#' @export
+row_calculation <- function(data_frame,
+                            statistics,
+                            ...,
+                            round_digits = NULL){
+    # Just keep the selected variables and transpose the entire matrix. Since
+    # the rows then become the columns, it is possible to just use column wise
+    # operations on the matrix.
+    var_matrix <- data_frame |>
+        keep(...) |>
+        t()
+
+    if (!is.numeric(var_matrix)){
+        print_message("ERROR", "Only numeric values allowed. Calculation will be aborted.")
+
+        return(invisible(NA))
+    }
+
+    # Check if provided statistics is valid
+    statistics <- get_origin_as_char(statistics, substitute(statistics))
+
+    if (length(statistics) > 1){
+        print_message("WARNING", "Only one <statistics> allowed at a time. The first element will be used.")
+
+        statistics <- statistics[1]
+    }
+
+    if (!tolower(statistics) %in% c("sum", "mean", "median", "min", "max", "mode", "freq")){
+        print_message("WARNING", "<Statistics> '[statistics]' [?is/are] invalid. 'sum' will be used.", statistics = tolower(statistics))
+
+        statistics <- "sum"
+    }
+
+    # Get the desired operation
+    stat_function <- switch(statistics,
+                            sum    = collapse::fsum,
+                            mean   = collapse::fmean,
+                            median = collapse::fmedian,
+                            min    = collapse::fmin,
+                            max    = collapse::fmax,
+                            mode   = collapse::fmode,
+                            freq   = collapse::fnobs,
+                            NULL)
+
+    # Compute row result and return as vector
+    result <- stat_function(var_matrix)
+
+    if (!is.null(round_digits)){
+        result <- round_values(result, round_digits)
+    }
+
+    result
+}
+
+
+################################################################################
+# Internal functions used in summarise_plus
+################################################################################
+
 #' Sum of Weights
 #'
 #' @description
@@ -56,7 +141,8 @@ freq_g0_qol <- function(values, group){
 #' @noRd
 percentiles_qol <- function(values, weight, group, probs){
     if (anyNA(values)){
-        message(" ! WARNING: To calculate percentiles there may be no NAs in the value variables.")
+        print_message("WARNING", "To calculate percentiles there may be no NAs in the value variables.",
+                      always_print = TRUE)
         return(NULL)
     }
 
@@ -97,9 +183,12 @@ get_group_missings <- function(group_vars, notes, na.rm){
         percent   <- round(missings * 100 / nobs, 1)
         none_miss <- nobs - missings
 
-        message(" ~ NOTE: ", format(missings, big.mark = ".", decimal.mark = ","),
-                " missings generated from grouping variables (", percent,
-                " %). Number of observations: ", format(none_miss, big.mark = ".", decimal.mark = ","), "/", format(nobs, big.mark = ".", decimal.mark = ","))
+        print_message("NOTE", "[missings] missings generated from grouping variables ([percent] %). Number of observations: [none_miss]/[nobs]",
+					  missings  = format(missings, big.mark = ".", decimal.mark = ","),
+				      percent   = percent,
+				      none_miss = format(none_miss, big.mark = ".", decimal.mark = ","),
+				      nobs      = format(nobs, big.mark = ".", decimal.mark = ","),
+					  always_print = TRUE)
     }
 }
 
@@ -210,14 +299,16 @@ compute_group_percentages <- function(original_df,
                                     on       = ".temp_key",
                                     how      = "left",
                                     multiple = TRUE,
-                                    verbose  = FALSE)
+                                    verbose  = FALSE,
+								    overid   = 2)
     }
     else{
         # In case there is at least one grouping variable
         joined_df <- collapse::join(summary_df, super_df,
                                     on      = super_group,
                                     how     = "left",
-                                    verbose = FALSE)
+                                    verbose = FALSE,
+								    overid  = 2)
     }
 
     # Return finished data frame
@@ -279,7 +370,8 @@ compute_group_percentages_short <- function(summary_df,
     joined_df <- collapse::join(summary_df, super_df,
                                 on      = super_group,
                                 how     = "left",
-                                verbose = FALSE)
+                                verbose = FALSE,
+								overid  = 2)
 
     # Return finished data frame
     joined_df <- joined_df |>
@@ -375,7 +467,8 @@ compute_total_percentages <- function(original_df,
                                 on       = ".temp_key",
                                 how      = "left",
                                 multiple = TRUE,
-                                verbose  = FALSE)
+                                verbose  = FALSE,
+								overid   = 2)
 
     # Return finished data frame
     joined_df <- joined_df |>
@@ -428,7 +521,8 @@ compute_total_percentages_short <- function(summary_df,
                                 on       = ".temp_key",
                                 how      = "left",
                                 multiple = TRUE,
-                                verbose  = FALSE)
+                                verbose  = FALSE,
+								overid   = 2)
 
     # Return finished data frame
     if (pct_name == "pct_total"){
@@ -477,7 +571,7 @@ calculate_percentages <- function(joined_df, values, pct_name, last_group_var){
     new_values  <- paste0(gsub("_sum$", "", values), "_", pct_name)
 
     # Compute percentages for every variable
-    for (i in seq_along(numerator)) {
+    for (i in seq_along(numerator)){
         current_num     <- numerator[i]
         current_den     <- denominator[i]
         current_new_var <- new_values[i]

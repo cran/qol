@@ -18,11 +18,10 @@ else.(data_frame, ...)
 
 \item{condition}{The condition on which a value should be passed to a variable.}
 
-\item{...}{The Assignment of what should happen when condition becomes TRUE.}
+\item{...}{The assignment of what should happen when condition becomes TRUE.}
 }
 \value{
-Returns a data frame with conditionally computed variables. If assigned values
-are of different types a character variable will be returned.
+Returns a data frame with conditionally computed variables.
 }
 \description{
 These functions make if statements more readable. Especially if an if block becomes bigger
@@ -42,6 +41,14 @@ will get new values if condition is TRUE. The existing values will not be overwr
 
 \code{\link[=else.]{else.()}} only acts if there already is a variable with the given name. Sets every
 remaining NA in given variable to the given value.
+}
+\details{
+The loop you can use within these functions is based on the 'SAS' do-over-loop. This
+type of loop iterates over every vector that appears in the loop in parallel.
+Means that in the first iteration all the first vector elements are used, in the
+second iteration all second elements of every vector, and so on. With this loop
+you don't have the need to construct an outer loop, but can directly pass in
+different vectors and let the function handle the loop inside.
 }
 \examples{
 # Example data frame
@@ -71,8 +78,60 @@ state_df <- state_df |>
       if.(state < 11, state_b = "West") |>
     else.(            state_b = "East")
 
+# Add multiple variables based on single conditions
+multi_df <- my_data |>
+         if.(age < 18 & education == "low",                  var1 = 1,
+                                                             var2 = TRUE,
+                                                             var3 = "Category 1") |>
+    else_if.(age >= 18 & education \%in\% c("middle", "high"), var1 = 2,
+                                                             var2 = FALSE,
+                                                             var3 = "Category 2") |>
+    else.   (                                                var1 = 3,
+                                                             var2 = FALSE,
+                                                             var3 = "Category 3")
+
+# Use if.() as a do-over-loop. In this kind of loop all vectors will be
+# advanced one iteration at a time in parallel.
+money    <- c("income", "expenses", "balance", "probability")
+new_vars <- c("var1", "var2", "var3", "var4")
+result   <- c(1, 2, 3, 4)
+
+do_over_df <- my_data |>
+      if.(money > 0, new_vars = result) |>
+    else.(           new_vars = 0)
+
+# It is also possible to select character expressions based on whether they
+# start/end with or contain a certain text.
+text_select_df <- my_data |>
+    if.(income_class == "01.:",  start    = 1) |>
+    if.(income_class == ":more", end      = 1) |>
+    if.(education    == ":i:",   contains = 1)
+
 # Select observations by condition instead of generating new variable
 subset_df <- my_data |> if.(sex == 1)
 
+# Select all non NA observations by variable
+subset_df <- my_data |> if.(sex)
+
+# All these functions can be used in a do_if() situation and are aware of
+# overarching conditions.
+do_if_df <- my_data |>
+    do_if(state < 11) |>
+          if.(age < 18, new_var = 1) |>
+        else.(          new_var = 2) |>
+    else_do() |>
+          if.(age < 18, new_var = 3) |>
+        else.(          new_var = 4) |>
+    end_do()
+
+}
+\seealso{
+The following functions can make use of the \code{\link[=do_if]{do_if()}} filter variables:
+
+Conditions: \code{\link[=if.]{if.()}}, \code{\link[=else_if.]{else_if.()}}, \code{\link[=else.]{else.()}}
+
+Filter Data Frame: \code{\link[=where.]{where.()}}
+
+Create new Variables: \code{\link[=compute]{compute()}}
 }
 \keyword{internal}

@@ -12,6 +12,8 @@
 #'
 #' @param ... Put in any styling option from [excel_output_style()] or [number_format_style()]
 #' with the new value.
+#' @param save_file A full file path to an RDS file in which global style options
+#' should be stored.
 #'
 #' @return
 #' [set_style_options()]: Returns modified global styling options.
@@ -29,25 +31,25 @@
 #' @rdname style_options
 #'
 #' @export
-set_style_options <- function(...){
+set_style_options <- function(..., save_file = NULL){
     # Translate ... into a list if possible
     style_list <- tryCatch({
         # Force evaluation to see if it exists
         list(...)
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         NULL
     })
 
     if (is.null(style_list)){
-        message(" X ERROR: Unknown object found. See 'excel_output_style()' and 'number_format_style()'\n",
-                "          for valid function parameters. Global style remains unchanged.")
+        print_message("ERROR", c("Unknown object found. See 'excel_output_style()' and 'number_format_style()'",
+								 "for valid function parameters. Global style remains unchanged."))
         return(invisible(.qol_options[["excel_style"]]))
     }
 
     if (length(style_list) == 0){
-        message(" X ERROR: Empty list found. See 'excel_output_style()' and 'number_format_style()'\n",
-                "          for valid function parameters. Global style remains unchanged.")
+        print_message("ERROR", c("Empty list found. See 'excel_output_style()' and 'number_format_style()'",
+								 "for valid function parameters. Global style remains unchanged."))
         return(invisible(.qol_options[["excel_style"]]))
     }
 
@@ -57,7 +59,7 @@ set_style_options <- function(...){
                          "sd_decimals", "variance_decimals", "first_decimals", "last_decimals", "p_decimals",
                          "missing_decimals")
 
-    number_characters <- c("pct_exce", "freq_excel", "freq.g0_excel", "sum_excel", "sum.wgt_excel", "mean_excel",
+    number_characters <- c("pct_excel", "freq_excel", "freq.g0_excel", "sum_excel", "sum.wgt_excel", "mean_excel",
                            "median_excel", "mode_excel", "min_excel", "max_excel", "sd_excel", "variance_excel",
                            "first_excel", "last_excel", "p_excel", "missing_excel")
 
@@ -73,7 +75,7 @@ set_style_options <- function(...){
 
     characters  <- c("sheet_name", "font", "header_alignment", "header_wrap", "subheader_alignment", "subheader_wrap",
                      "cat_col_alignment", "cat_col_wrap", "table_alignment", "box_alignment", "box_wrap", "title_alignment",
-                     "footnote_alignment", "na_symbol", "save_path", "file")
+                     "footnote_alignment", "na_symbol", "save_path", "file", "header_stat_merging")
 
     colors <- c("header_back_color", "header_font_color", "header_border_color", "subheader_back_color", "subheader_font_color",
                 "subheader_border_color", "cat_col_back_color", "cat_col_font_color", "cat_col_border_color", "table_back_color",
@@ -84,25 +86,25 @@ set_style_options <- function(...){
     for (style_option in names(style_list)){
         value <- style_list[[style_option]]
 
-        if (style_option %in% logicals && !is.logical(value)){
-            message(" ! WARNING: '", style_option, "' must be <logical>. Option will be omitted.")
+        if (style_option %in% logicals && !all(is.logical(value))){
+            print_message("WARNING", "'[style_option]' must be <logical>. Option will be omitted.", style_option = style_option)
             style_list[[style_option]] <- NULL
         }
-        else if (style_option %in% c(numerics, number_numerics) && !is.numeric(value)){
-            message(" ! WARNING: '", style_option, "' must be <numeric>. Option will be omitted.")
+        else if (style_option %in% c(numerics, number_numerics) && !all(is.numeric(value))){
+            print_message("WARNING", "'[style_option]' must be <numeric>. Option will be omitted.", style_option = style_option)
             style_list[[style_option]] <- NULL
         }
-        else if (style_option %in% c(characters, number_characters) && !is.character(value)){
-            message(" ! WARNING: '", style_option, "' must be <character>. Option will be omitted.")
+        else if (style_option %in% c(characters, number_characters) && !all(is.character(value))){
+            print_message("WARNING", "'[style_option]' must be <character>. Option will be omitted.", style_option = style_option)
             style_list[[style_option]] <- NULL
         }
-        else if (style_option %in% colors && !grepl("^[A-Fa-f0-9]{6}$", value)){
-            message(" ! WARNING: '", style_option, "' must be a 6 character <hex code>. Option will be omitted.")
+        else if (style_option %in% colors && !all(grepl("^[A-Fa-f0-9]{6}$", value))){
+            print_message("WARNING", "'[style_option]' must be a 6 character <hex code>. Option will be omitted.", style_option = style_option)
             style_list[[style_option]] <- NULL
         }
         else if (!style_option %in% c(number_numerics, number_characters, logicals, numerics, characters, colors)){
-            message(" ! WARNING: '", style_option, "' is not a valid style option. See 'excel_output_style()' and 'number_format_style()'\n",
-                    "            for valid function parameters. Option will be omitted.")
+            print_message("WARNING", c("'[style_option]' is not a valid style option. See 'excel_output_style()' and 'number_format_style()'",
+                                       "for valid function parameters. Option will be omitted."), style_option = style_option)
             style_list[[style_option]] <- NULL
         }
     }
@@ -119,6 +121,28 @@ set_style_options <- function(...){
 
     # Update the internal state
     .qol_options[["excel_style"]] <- utils::modifyList(.qol_options[["excel_style"]], style_list)
+
+    # Save global style options as physical file
+    if (!is.null(save_file)){
+        if (!file.exists(dirname(save_file))){
+            print_message("ERROR", "Path does not exist: [path]", path = save_file)
+        }
+        else{
+            extension <- tolower(tools::file_ext(save_file))
+
+            if (extension == ""){
+                save_file <- paste0(save_file, ".rds")
+                extension <- "rds"
+            }
+
+            if (!extension == "rds"){
+                save_file <- gsub(extension, "rds", save_file)
+            }
+
+            saveRDS(.qol_options[["excel_style"]], file = save_file)
+        }
+    }
+
     invisible(.qol_options[["excel_style"]])
 }
 
@@ -126,7 +150,7 @@ set_style_options <- function(...){
 #' Reset Global Styling Options For Excel Workbooks
 #'
 #' @description
-#' [reset_style_options()] resets global style options to the default parameters.
+#' [reset_style_options()] Resets global style options to the default parameters.
 #'
 #' @return
 #' [reset_style_options()]: Returns default global styling options.
@@ -141,6 +165,8 @@ reset_style_options <- function(){
     .qol_options[["excel_style"]] <- excel_output_style()
     .qol_options[["var_labels"]]  <- list()
     .qol_options[["stat_labels"]] <- list()
+    .qol_options[["titles"]]     <- c()
+    .qol_options[["footnotes"]]  <- c()
 
     invisible(.qol_options)
 }
@@ -149,7 +175,10 @@ reset_style_options <- function(){
 #' Get Global Styling Options For Excel Workbooks
 #'
 #' @description
-#' [get_style_options()] prints out the currently set global styling options.
+#' [get_style_options()] Prints out the currently set global styling options.
+#'
+#' @param from_file A full file path to an RDS file in which global style options
+#' are stored.
 #'
 #' @return
 #' [get_style_options()]: List of global styling options.
@@ -160,8 +189,23 @@ reset_style_options <- function(){
 #' @rdname style_options
 #'
 #' @export
-get_style_options <- function(){
-    .qol_options[["excel_style"]]
+get_style_options <- function(from_file = NULL){
+    # Just get global options, if no file is specified
+    if (is.null(from_file)){
+        .qol_options[["excel_style"]]
+    }
+    # Otherwise load from path
+    else{
+        if (!file.exists(from_file)){
+            print_message("ERROR", "File does not exist: [file]", file = from_file)
+        }
+        else{
+            style_list <- readRDS(file = from_file)
+            set_style_options(style_list)
+        }
+
+        .qol_options[["excel_style"]]
+    }
 }
 
 
@@ -215,18 +259,18 @@ set_variable_labels <- function(...){
     label_list <- tryCatch({
         # Force evaluation to see if it exists
         list(...)
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         NULL
     })
 
     if (is.null(label_list)){
-        message(" X ERROR: Unknown object found. Global style remains unchanged.")
+        print_message("ERROR", "Unknown object found. Global style remains unchanged.")
         return(invisible(.qol_options[["var_labels"]]))
     }
 
     if (length(label_list) == 0){
-        message(" X ERROR: Empty list found. Global style remains unchanged.")
+        print_message("ERROR", "Empty list found. Global style remains unchanged.")
         return(invisible(.qol_options[["var_labels"]]))
     }
 
@@ -278,18 +322,18 @@ set_stat_labels <- function(...){
     statistic_list <- tryCatch({
         # Force evaluation to see if it exists
         list(...)
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         NULL
     })
 
     if (is.null(statistic_list)){
-        message(" X ERROR: Unknown object found. Global style remains unchanged.")
+        print_message("ERROR", "Unknown object found. Global style remains unchanged.")
         return(invisible(.qol_options[["stat_labels"]]))
     }
 
     if (length(statistic_list) == 0){
-        message(" X ERROR: Empty list found. Global style remains unchanged.")
+        print_message("ERROR", "Empty list found. Global style remains unchanged.")
         return(invisible(.qol_options[["stat_labels"]]))
     }
 
@@ -343,18 +387,18 @@ set_print <- function(...){
     print_option <- tryCatch({
         # Force evaluation to see if it exists
         unlist(list(...))
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         NULL
     })
 
     if (is.null(print_option)){
-        message(" X ERROR: Unknown object found. Global option remains unchanged.")
+        print_message("ERROR", "Unknown object found. Global option remains unchanged.")
         return(invisible(.qol_options[["print"]]))
     }
 
     if (!is.logical(print_option)){
-        message(" X ERROR: Print option can only be TRUE or FALSE. Global option remains unchanged.")
+        print_message("ERROR", "Print option can only be TRUE or FALSE. Global option remains unchanged.")
         return(invisible(.qol_options[["print"]]))
     }
 
@@ -406,18 +450,18 @@ set_monitor <- function(...){
     monitor_option <- tryCatch({
         # Force evaluation to see if it exists
         unlist(list(...))
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         NULL
     })
 
     if (is.null(monitor_option)){
-        message(" X ERROR: Unknown object found. Global option remains unchanged.")
+        print_message("ERROR", "Unknown object found. Global option remains unchanged.")
         return(invisible(.qol_options[["monitor"]]))
     }
 
     if (!is.logical(monitor_option)){
-        message(" X ERROR: Monitor option can only be TRUE or FALSE. Global option remains unchanged.")
+        print_message("ERROR", "Monitor option can only be TRUE or FALSE. Global option remains unchanged.")
         return(invisible(.qol_options[["monitor"]]))
     }
 
@@ -469,18 +513,18 @@ set_na.rm <- function(...){
     na_option <- tryCatch({
         # Force evaluation to see if it exists
         unlist(list(...))
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         NULL
     })
 
     if (is.null(na_option)){
-        message(" X ERROR: Unknown object found. Global option remains unchanged.")
+        print_message("ERROR", "Unknown object found. Global option remains unchanged.")
         return(invisible(.qol_options[["na.rm"]]))
     }
 
     if (!is.logical(na_option)){
-        message(" X ERROR: NA removal option can only be TRUE or FALSE. Global option remains unchanged.")
+        print_message("ERROR", "NA removal option can only be TRUE or FALSE. Global option remains unchanged.")
         return(invisible(.qol_options[["na.rm"]]))
     }
 
@@ -532,18 +576,18 @@ set_print_miss <- function(...){
     print_miss_option <- tryCatch({
         # Force evaluation to see if it exists
         unlist(list(...))
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         NULL
     })
 
     if (is.null(print_miss_option)){
-        message(" X ERROR: Unknown object found. Global option remains unchanged.")
+        print_message("ERROR", "Unknown object found. Global option remains unchanged.")
         return(invisible(.qol_options[["print_miss"]]))
     }
 
     if (!is.logical(print_miss_option)){
-        message(" X ERROR: Print missing categories option can only be TRUE or FALSE. Global option remains unchanged.")
+        print_message("ERROR", "Print missing categories option can only be TRUE or FALSE. Global option remains unchanged.")
         return(invisible(.qol_options[["print_miss"]]))
     }
 
@@ -594,23 +638,23 @@ set_output <- function(...){
     output_option <- tryCatch({
         # Force evaluation to see if it exists
         unlist(list(...))
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         NULL
     })
 
     if (is.null(output_option)){
-        message(" X ERROR: Unknown object found. Global option remains unchanged.")
+        print_message("ERROR", "Unknown object found. Global option remains unchanged.")
         return(invisible(.qol_options[["output"]]))
     }
 
     if (!is.character(output_option)){
-        message(" X ERROR: Output can only be 'console', 'text', 'excel' or 'excel_nostyle'. Global option remains unchanged.")
+        print_message("ERROR", "Output can only be 'console', 'text', 'excel' or 'excel_nostyle'. Global option remains unchanged.")
         return(invisible(.qol_options[["output"]]))
     }
 
     if (!tolower(output_option) %in% c("console", "text", "excel", "excel_nostyle")){
-        message(" X ERROR: Output can only be 'console', 'text', 'excel' or 'excel_nostyle'. Global option remains unchanged.")
+        print_message("ERROR", "Output can only be 'console', 'text', 'excel' or 'excel_nostyle'. Global option remains unchanged.")
         return(invisible(.qol_options[["output"]]))
     }
 
@@ -652,8 +696,9 @@ get_output <- function(){
 #'
 #' @examples
 #' set_titles("This is title number 1 link: https://cran.r-project.org/",
-#'            "This is title number 2",
-#'            "This is title number 3")
+#'            "This is title number 2 cell: W22",
+#'            "This is title number 3 file: C:/MyFolder/MyFile.docx",
+#'            "This is title number 4")
 #'
 #' @rdname qol_options
 #'
@@ -663,7 +708,7 @@ set_titles <- function(...){
     titles_option <- tryCatch({
         # Force evaluation to see if it exists
         unlist(list(...))
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         "ERROR"
     })
@@ -674,12 +719,12 @@ set_titles <- function(...){
     }
 
     if (length(titles_option) == 1 && titles_option == "ERROR"){
-        message(" X ERROR: Unknown object found. Global titles remain unchanged.")
+        print_message("ERROR", "Unknown object found. Global titles remain unchanged.")
         return(invisible(.qol_options[["titles"]]))
     }
 
     if (!is.character(titles_option)){
-        message(" X ERROR: Titles must be provided as character. Global titles remain unchanged.")
+        print_message("ERROR", "Titles must be provided as character. Global titles remain unchanged.")
         return(invisible(.qol_options[["titles"]]))
     }
 
@@ -720,9 +765,10 @@ get_titles <- function(){
 #' [set_footnotes()]: Changed global footnotes.
 #'
 #' @examples
-#' set_footnotes("This is title number 1 link: https://cran.r-project.org/",
-#'            "This is title number 2",
-#'            "This is title number 3")
+#' set_footnotes("This is footnote number 1 link: https://cran.r-project.org/",
+#'               "This is footnote number 2 cell: W22",
+#'               "This is footnote number 3 file: C:/MyFolder/MyFile.docx",
+#'               "This is footnote number 4")
 #'
 #' @rdname qol_options
 #'
@@ -732,7 +778,7 @@ set_footnotes <- function(...){
     footnotes_option <- tryCatch({
         # Force evaluation to see if it exists
         unlist(list(...))
-    }, error = function(e) {
+    }, error = function(e){
         # Evaluation failed
         "ERROR"
     })
@@ -743,12 +789,12 @@ set_footnotes <- function(...){
     }
 
     if (length(footnotes_option) == 1 && footnotes_option == "ERROR"){
-        message(" X ERROR: Unknown object found. Global footnotes remain unchanged.")
+        print_message("ERROR", "Unknown object found. Global footnotes remain unchanged.")
         return(invisible(.qol_options[["footnotes"]]))
     }
 
     if (!is.character(footnotes_option)){
-        message(" X ERROR: Footnotes must be provided as character. Global footnotes remain unchanged.")
+        print_message("ERROR", "Footnotes must be provided as character. Global footnotes remain unchanged.")
         return(invisible(.qol_options[["footnotes"]]))
     }
 
@@ -777,10 +823,77 @@ get_footnotes <- function(){
 }
 
 
+#' Set Global Number Of Used Threads
+#'
+#' @description
+#' [set_threads()]: Globally sets the number of used threads for the save and load
+#' file functions.
+#'
+#' @param ... [set_threads()]: Put in the number of threads to use or NULL to reset.
+#'
+#' @return
+#' [set_threads()]: Changed global number of used threads.
+#'
+#' @examples
+#' set_threads(8)
+#'
+#' @rdname qol_options
+#'
+#' @export
+set_threads <- function(...){
+    # Translate ... into a list if possible
+    threads_option <- tryCatch({
+        # Force evaluation to see if it exists
+        unlist(list(...))
+    }, error = function(e){
+        # Evaluation failed
+        "ERROR"
+    })
+
+    if (is.null(threads_option)){
+        .qol_options[["threads"]] <- fst::threads_fst(NULL)
+        return(invisible(.qol_options[["threads"]]))
+    }
+
+    if (length(threads_option) == 1 && threads_option == "ERROR"){
+        print_message("ERROR", "Unknown object found. Global number of used threads remains unchanged.")
+        return(invisible(.qol_options[["threads"]]))
+    }
+
+    if (!is.numeric(threads_option)){
+        print_message("ERROR", "Number of used threads must be provided as integer value. Global number of used threads remains unchanged.")
+        return(invisible(.qol_options[["threads"]]))
+    }
+
+    .qol_options[["threads"]] <- as.integer(threads_option)
+
+    invisible(.qol_options[["threads"]])
+}
+
+
+#' Get Global Number Of Used Threads
+#'
+#' @description
+#' [get_threads()]: Get the globally stored number of used threads.
+#'
+#' @return
+#' [get_threads()]: Current number of used threads.
+#'
+#' @examples
+#' get_threads()
+#'
+#' @rdname qol_options
+#'
+#' @export
+get_threads <- function(){
+    .qol_options[["threads"]]
+}
+
+
 #' Reset Global Options
 #'
 #' @description
-#' [reset_qol_options()] resets global options to the default parameters.
+#' [reset_qol_options()] Resets global options to the default parameters.
 #'
 #' @return
 #' [reset_qol_options()]: Returns default global options.
@@ -792,13 +905,17 @@ get_footnotes <- function(){
 #'
 #' @export
 reset_qol_options <- function(){
-    .qol_options[["print"]]      <- TRUE
-    .qol_options[["monitor"]]    <- FALSE
-    .qol_options[["na.rm"]]      <- FALSE
-    .qol_options[["print_miss"]] <- FALSE
-    .qol_options[["output"]]     <- "console"
-    .qol_options[["titles"]]     <- c()
-    .qol_options[["footnotes"]]  <- c()
+    .qol_options[["print"]]       <- TRUE
+    .qol_options[["monitor"]]     <- FALSE
+    .qol_options[["na.rm"]]       <- FALSE
+    .qol_options[["print_miss"]]  <- FALSE
+    .qol_options[["output"]]      <- "console"
+    .qol_options[["excel_style"]] <- excel_output_style()
+    .qol_options[["var_labels"]]  <- list()
+    .qol_options[["stat_labels"]] <- list()
+    .qol_options[["titles"]]      <- c()
+    .qol_options[["footnotes"]]   <- c()
+    .qol_options[["threads"]]     <- suppressMessages(fst::threads_fst(NULL))
 
     invisible(.qol_options)
 }
@@ -813,6 +930,20 @@ reset_qol_options <- function(){
 #' URL.
 #'
 #' @export
-qol_news <- function() {
+qol_news <- function(){
     utils::browseURL("https://s3rdia.github.io/qol/news/index.html")
+}
+
+
+#' Go To GitHub NEWS Page
+#'
+#' @description
+#' Opens browser and goes to the DeepWiki page
+#'
+#' @return
+#' URL.
+#'
+#' @export
+qol_chat <- function(){
+    utils::browseURL("https://deepwiki.com/s3rdia/qol")
 }

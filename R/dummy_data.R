@@ -19,12 +19,12 @@ dummy_data <- function(no_obs    = 25000,
                        insert_na = TRUE,
                        monitor   = .qol_options[["monitor"]]){
     # Measure the time
-    start_time <- Sys.time()
+    print_start_message()
 
     #-------------------------------------------------------------------------#
     monitor_df <- NULL |> monitor_start("Preparation")
     #-------------------------------------------------------------------------#
-    message(" > Generating dummy file. Computing ...")
+    print_step("MAJOR", "Generating dummy file. Computing ...")
 
     # Reduce the number of observations to the number of households, because different
     # household sizes will be generated which basically expands this number to the number
@@ -47,7 +47,7 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate households")
     #-------------------------------------------------------------------------#
-    message("   + households and states")
+    print_step("MINOR", "households and states")
 
     # Household sizes are generated with different probabilities, so that smaller numbers
     # are generated more frequently.
@@ -56,26 +56,20 @@ dummy_data <- function(no_obs    = 25000,
 
     # Generate unique household ids and a running number for each person inside the
     # household
-    household_id <- rep(1:number_of_households, times = persons_per_household)
-    person_id    <- sequence(persons_per_household)
+    dummy_temp <- data.table::data.table(
+        household_id = rep(1:number_of_households, times = persons_per_household))
 
-    persons_per_household_hh <- rep(persons_per_household,
-                                    times = persons_per_household)
+    dummy_temp[["person_id"]]         <- sequence(persons_per_household)
+    dummy_temp[["number_of_persons"]] <- as.integer(rep(persons_per_household, times = persons_per_household))
 
     # Randomly generate sixteen states
-    state_temp <- sample(1:16, number_of_households, replace = TRUE, prob = state_probs)
-    states     <- rep(state_temp, times = persons_per_household)
+    dummy_temp[["state"]] <- as.integer(rep(sample(1:16, number_of_households,
+                                                   replace = TRUE, prob = state_probs),
+                                                   times   = persons_per_household))
 
     # Save the original number of observations to later trim the data frame to this number
     orig_obs <- no_obs
-    no_obs   <- length(household_id)
-
-    # Put variables together as a data frame
-    dummy_temp <- data.table::data.table(
-        household_id = as.integer(household_id),
-        person_id    = as.integer(person_id),
-        state        = as.integer(states),
-        number_of_persons = as.integer(persons_per_household_hh))
+    no_obs   <- collapse::fnrow(dummy_temp)
 
     # Some variables will be generated on the level of households. Prepare a group for this.
     group_hh <- collapse::GRP(dummy_temp[["household_id"]])
@@ -86,18 +80,19 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate weights")
     #-------------------------------------------------------------------------#
-    message("   + weights")
+    print_step("MINOR", "weights")
 
     # Generate unique weights per person and also pass on the first weight per household
     # onto all other persons in the same household.
     scale_factor <- 25000 / orig_obs
     dummy_temp[["weight"]] <- stats::runif(no_obs, 2.9, 3.7) * scale_factor
     dummy_temp[["weight"]] <- dummy_temp[["weight"]] |> collapse::ffirst(g = group_hh, TRA = "fill")
+    dummy_temp[["weight_per_year"]] <- dummy_temp[["weight"]] * 5
 
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate sex")
     #-------------------------------------------------------------------------#
-    message("   + sex")
+    print_step("MINOR", "sex")
 
     # Generate sex variable, but let each state have a different distribution
     sex_probs <- stats::runif(16, 0.3, 0.7)
@@ -107,7 +102,7 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate age")
     #-------------------------------------------------------------------------#
-    message("   + age")
+    print_step("MINOR", "age")
 
     # Generate random ages
     dummy_temp[["age"]] <- floor(stats::runif(no_obs, min = 25, max = 55))
@@ -133,7 +128,7 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate income")
     #-------------------------------------------------------------------------#
-    message("   + income")
+    print_step("MINOR", "income")
 
     # Generate random incomes and bring a bit variety to the distribution depending
     # on certain aspects like age, sex, and state.
@@ -148,7 +143,7 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate expenses and balance")
     #-------------------------------------------------------------------------#
-    message("   + expenses and balance")
+    print_step("MINOR", "expenses and balance")
 
     # Generate random expenses and bring a bit variety to the distribution depending
     # on certain aspects like age, sex, and state.
@@ -160,12 +155,10 @@ dummy_data <- function(no_obs    = 25000,
     dummy_temp[["expenses"]] <- data.table::fifelse(dummy_temp[["sex"]] == 1,                             dummy_temp[["expenses"]] * 0.8,  dummy_temp[["expenses"]])
     dummy_temp[["expenses"]] <- data.table::fifelse(dummy_temp[["state"]] >= 11,                          dummy_temp[["expenses"]] * 0.7,  dummy_temp[["expenses"]])
 
-    dummy_temp[["balance"]] <- dummy_temp[["income"]] + dummy_temp[["expenses"]]
-
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate income classes")
     #-------------------------------------------------------------------------#
-    message("   + income classes")
+    print_step("MINOR", "income classes")
 
     dummy_temp[["income_class"]] <- as.character(cut(dummy_temp[["income"]],
         breaks = c(0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, Inf),
@@ -178,7 +171,7 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate probability")
     #-------------------------------------------------------------------------#
-    message("   + probability")
+    print_step("MINOR", "probability")
 
     # Generate unique probabilities per person and also pass on the first probability
     # per household onto all other persons in the same household.
@@ -193,7 +186,7 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate education")
     #-------------------------------------------------------------------------#
-    message("   + education")
+    print_step("MINOR", "education")
 
     male_id   <- which(dummy_temp[["sex"]] == 1)
     female_id <- which(dummy_temp[["sex"]] == 2)
@@ -214,7 +207,7 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate body height")
     #-------------------------------------------------------------------------#
-    message("   + body_height")
+    print_step("MINOR", "body_height")
 
     # Younger people should be smaller and grow steadily
     growth_factor       <- rep(1, no_obs)
@@ -237,7 +230,7 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate body weight")
     #-------------------------------------------------------------------------#
-    message("   + body_weight")
+    print_step("MINOR", "body_weight")
 
     # Generate some variety in body weight
     bmi                         <- stats::rlnorm(no_obs, log(24), 0.25)
@@ -252,7 +245,7 @@ dummy_data <- function(no_obs    = 25000,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate NUTS3")
     #-------------------------------------------------------------------------#
-    message("   + NUTS2 and NUTS3")
+    print_step("MINOR", "NUTS2 and NUTS3")
 
     # Read in NUTS3 codes with individual probabilities
     nuts_file            <- suppressMessages(import_data(system.file("extdata", "qol_nuts.csv", package = "qol")))
@@ -282,23 +275,38 @@ dummy_data <- function(no_obs    = 25000,
     dummy_temp <- collapse::join(dummy_temp, region_temp,
                                  on       = c("state", "household_id"),
                                  how      = "left",
-                                 verbose  = FALSE)
+                                 verbose  = FALSE,
+								 overid   = 2)
 
     # Extract NUTS2 region from NUTS3 code
     dummy_temp[["NUTS2"]] <- substr(dummy_temp[["NUTS3"]], 3, 3)
 
+    if (insert_na){
+        #-------------------------------------------------------------------------#
+        monitor_df <- monitor_df |> monitor_next("Insert NA values")
+        #-------------------------------------------------------------------------#
+        print_step("MAJOR", "Insert NA values")
+
+        dummy_temp[["age"]]          <- collapse::na_insert(dummy_temp[["age"]],    prop = 0.05)
+        dummy_temp[["sex"]]          <- collapse::na_insert(dummy_temp[["sex"]],    prop = 0.05)
+        dummy_temp[["income"]]       <- collapse::na_insert(dummy_temp[["income"]], prop = 0.05)
+        dummy_temp[["income_class"]] <- data.table::fifelse(is.na(dummy_temp[["income"]]), NA, dummy_temp[["income_class"]])
+        dummy_temp[["expenses"]]     <- data.table::fifelse(is.na(dummy_temp[["income"]]), NA, dummy_temp[["expenses"]])
+        dummy_temp[["education"]]    <- collapse::na_insert(dummy_temp[["education"]],   prop = 0.05)
+        dummy_temp[["body_height"]]  <- collapse::na_insert(dummy_temp[["body_height"]], prop = 0.05)
+        dummy_temp[["body_weight"]]  <- collapse::na_insert(dummy_temp[["body_weight"]], prop = 0.05)
+    }
+
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Generate years")
     #-------------------------------------------------------------------------#
-    message("   + years")
+    print_step("MAJOR", "Expand years")
 
     # Sort and renumber household ids inside states
     dummy_temp <- dummy_temp |> data.table::setorderv(c("state", "household_id", "person_id"))
-    dummy_temp[["household_id"]] <- stats::ave(
-        dummy_temp[["household_id"]],
-        dummy_temp[["state"]],
-        FUN = function(case) match(case, unique(case))
-    )
+    dummy_temp[["household_id"]] <- stats::ave(dummy_temp[["household_id"]],
+                                               dummy_temp[["state"]],
+                                               FUN = function(case) match(case, unique(case)))
 
     # Prepare years
     current_year <- as.numeric(format(Sys.Date(), "%Y"))
@@ -316,18 +324,19 @@ dummy_data <- function(no_obs    = 25000,
                                  on       = "temp.",
                                  how      = "left",
                                  multiple = TRUE,
-                                 verbose  = FALSE)
+                                 verbose  = FALSE,
+								 overid   = 2)
 
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Advance values")
     #-------------------------------------------------------------------------#
-    message(" > Advance values in later years")
+    print_step("MAJOR", "Advance values in later years")
 
     # Up the age and income/expenses
     dummy_temp <- dummy_temp |> collapse::fmutate(age      = age      + age_factor,
                                                   income   = income   * income_factor,
                                                   expenses = expenses * expenses_factor,
-                                                  balance  = income - expenses)
+                                                  balance  = income   + expenses)
 
     # Up the body height for people under 18
     dummy_temp[["body_height"]] <- as.integer(data.table::fifelse(
@@ -341,37 +350,21 @@ dummy_data <- function(no_obs    = 25000,
         dummy_temp[["body_weight"]] + (dummy_temp[["age_factor"]] * dummy_temp[["income_factor"]] * 5),
         pmax(5, dummy_temp[["body_weight"]] + sample(-10:10, no_obs, replace = TRUE))))
 
-    if (insert_na){
-        #-------------------------------------------------------------------------#
-        monitor_df <- monitor_df |> monitor_next("Insert NA values")
-        #-------------------------------------------------------------------------#
-        message(" > Insert NA values")
-
-        dummy_temp[["age"]]          <- collapse::na_insert(dummy_temp[["age"]],    prop = 0.05)
-        dummy_temp[["sex"]]          <- collapse::na_insert(dummy_temp[["sex"]],    prop = 0.05)
-        dummy_temp[["income"]]       <- collapse::na_insert(dummy_temp[["income"]], prop = 0.05)
-        dummy_temp[["income_class"]] <- data.table::fifelse(is.na(dummy_temp[["income"]]), NA, dummy_temp[["income_class"]])
-        dummy_temp[["expenses"]]     <- data.table::fifelse(is.na(dummy_temp[["income"]]), NA, dummy_temp[["expenses"]])
-        dummy_temp[["balance"]]      <- data.table::fifelse(is.na(dummy_temp[["income"]]), NA, dummy_temp[["balance"]])
-        dummy_temp[["education"]]    <- collapse::na_insert(dummy_temp[["education"]],   prop = 0.05)
-        dummy_temp[["body_height"]]  <- collapse::na_insert(dummy_temp[["body_height"]], prop = 0.05)
-        dummy_temp[["body_weight"]]  <- collapse::na_insert(dummy_temp[["body_weight"]], prop = 0.05)
-    }
-
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Finish")
     #-------------------------------------------------------------------------#
-    message(" > Finish")
+    print_step("MAJOR", "Finish")
 
-    dummy_temp <- utils::head(dummy_temp, orig_obs) |>
+    random_sample <- sort(sample.int(collapse::fnrow(dummy_temp), orig_obs))
+
+    dummy_temp <- dummy_temp |> collapse::fsubset(random_sample) |>
         keep("year", "state", "NUTS2", "NUTS3", "household_id", "person_id",
              "number_of_persons", "first_person", "age",
              "sex", "education", "body_height", "body_weight",
              "income_class", "income", "expenses", "balance", "probability",
-             "weight", order_vars = TRUE)
+             "weight", "weight_per_year", order_vars = TRUE)
 
-    end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
-    message("\n- - - 'dummy_data' execution time: ", end_time, " seconds\n")
+    print_closing(5)
 
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_end()

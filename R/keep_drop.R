@@ -59,7 +59,7 @@ keep <- function(data_frame, ..., order_vars = FALSE){
     variables_temp <- dots_to_char(...)
 
     if (length(variables_temp) == 0){
-        return(data_frame)
+        return(invisible(data_frame))
     }
 
     original_order <- names(data_frame)
@@ -67,14 +67,19 @@ keep <- function(data_frame, ..., order_vars = FALSE){
     # Check if there are any colons in the selection and deparse variables accordingly
     variables <- data_frame |> deparse_colon(variables_temp)
 
+    if (length(variables) == 0){
+        print_message("WARNING", "No variables found with the given pattern. Data frame remains untouched.")
+        return(invisible(data_frame))
+    }
+
     # Check if all variables are part of the data frame
     provided_vars <- variables
     invalid_vars  <- variables[!variables %in% names(data_frame)]
     variables     <- variables[variables %in% names(data_frame)]
 
     if (length(invalid_vars) > 0){
-        message(" ! WARNING: The provided variable to keep '", paste(invalid_vars, collapse = ", "), "' is not part of\n",
-                "            the data frame. This variable will be omitted.")
+        print_message("WARNING", c("The provided variable to keep '[invalid]' is not part of",
+								   "the data frame. This variable will be omitted."), invalid = invalid_vars)
         rm(provided_vars, invalid_vars)
     }
 
@@ -112,11 +117,16 @@ dropp <- function(data_frame, ...){
     variables_temp <- dots_to_char(...)
 
     if (length(variables_temp) == 0){
-        return(data_frame)
+        return(invisible(data_frame))
     }
 
     # Check if there are any colons in the selection and deparse variables accordingly
     variables <- data_frame |> deparse_colon(variables_temp)
+
+    if (length(variables) == 0){
+        print_message("WARNING", "No variables found with the given pattern. Data frame remains untouched.")
+        return(invisible(data_frame))
+    }
 
     # Check if all variables are part of the data frame
     provided_vars <- variables
@@ -124,11 +134,12 @@ dropp <- function(data_frame, ...){
     variables     <- variables[variables %in% names(data_frame)]
 
     if (length(invalid_vars) > 0){
-        message(" ! WARNING: The provided variable to drop '", paste(invalid_vars, collapse = ", "), "' is not part of\n",
-                "            the data frame. This variable will be omitted.")
+        print_message("WARNING", c("The provided variable to drop '[invalid]' is not part of",
+								   "the data frame. This variable will be omitted."),
+								   invalid = invalid_vars)
 
         if (length(variables) == 0){
-            return(data_frame)
+            return(invisible(data_frame))
         }
     }
 
@@ -165,8 +176,9 @@ deparse_colon <- function(data_frame, variable_vector){
         only_colons <- gsub(":", "", variable)
 
         # If it's just colons with no text, skip "variable" and put out a warning
-        if (nchar(only_colons) == 0) {
-            message(" ! WARNING: A selection only contained colons. Selection will be ignored.")
+        if (nchar(only_colons) == 0){
+            print_message("WARNING", "A selection only contained colons. Selection will be ignored.",
+                          always_print = TRUE)
             next
         }
 
@@ -189,7 +201,7 @@ deparse_colon <- function(data_frame, variable_vector){
                 variables   <- c(variables, matches)
             }
             # When at the start (":text"), select all variables which end with the characters
-            # following the colon. ":" acts as a placeholder for everything that comes before
+            # following the colon. ":" acts as a placeholder for everything that comes before.
             else if (startsWith(variable, ":")){
                 search_term <- substring(variable, 2)
                 matches     <- names(data_frame)[endsWith(names(data_frame), search_term)]
@@ -215,8 +227,9 @@ deparse_colon <- function(data_frame, variable_vector){
         }
         # If there are more than two colons skip variable
         else{
-            message(" ! WARNING: Selection '", variable, "' contains more than two colons which is\n",
-                    "            not allowed. Selection will be ignored.")
+            print_message("WARNING", c("Selection '[variable]' contains more than two colons which is\n",
+									   "not allowed. Selection will be ignored."), variable = variable,
+									   always_print = TRUE)
         }
     }
 

@@ -51,6 +51,9 @@
 #'
 #' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
 #'
+#' Other global options: [set_titles()], [set_footnotes()], [set_print()], [set_monitor()],
+#' [set_na.rm()], [set_print()], [set_print_miss()], [set_output()].
+#'
 #' Creating formats: [discrete_format()] and [interval_format()].
 #'
 #' Functions that can handle formats and styles: [crosstabs()], [any_table()].
@@ -64,15 +67,14 @@
 #' # Example data frame
 #' my_data <- dummy_data(1000)
 #'
-#' # Define titles and footnotes. If you want to add hyperlinks you can do so by
-#' # adding "link:" followed by the hyperlink to the main text.
-#' set_titles("This is title number 1 link: https://cran.r-project.org/",
+#' # Define titles and footnotes.
+#' set_titles("This is title number 1",
 #'            "This is title number 2",
 #'            "This is title number 3")
 #'
 #' set_footnotes("This is footnote number 1",
 #'               "This is footnote number 2",
-#'               "This is footnote number 3 link: https://cran.r-project.org/")
+#'               "This is footnote number 3")
 #'
 #' # Output frequencies tables
 #' my_data |> frequencies(sex)
@@ -104,6 +106,20 @@
 #' # Output to Excel
 #' my_data |> frequencies(sex, output = "excel")
 #'
+#' # If you want to add hyperlinksto titles and footnotes you can do so by
+#' # adding "link:" followed by the hyperlink to the main text. Linking to another
+#' # cell works with "cell:". To link to a file use "file:" an pass the full file
+#' # path afterwards.
+#' set_titles("This is title number 1",
+#'            "This is title number 2 link: https://cran.r-project.org/",
+#'            "This is title number 3 cell: W22",
+#'            "This is title number 4 file: C:/MyFolder/MyFile.txt")
+#'
+#' set_footnotes("This is footnote number 1",
+#'               "This is footnote number 2 file: C:/MyFolder/MyFile.txt",
+#'               "This is footnote number 3 cell: W22",
+#'               "This is footnote number 4 link: https://cran.r-project.org/")
+#'
 #' # Individual styling can also be passed directly
 #' my_style <- excel_output_style(header_back_color = "0077B6",
 #'                                font              = "Times New Roman")
@@ -116,6 +132,7 @@
 #' table_file <- tempfile(fileext = ".xlsx")
 #'
 #' # Note: Normally you would directly input the path ("C:/MyPath/") and name ("MyFile.xlsx").
+#' #       With the set_style_options you can also set a table style globally.
 #' set_style_options(save_path  = dirname(table_file),
 #'                   file       = basename(table_file),
 #'                   sheet_name = "MyTable")
@@ -148,7 +165,8 @@ frequencies <- function(data_frame,
                         monitor    = .qol_options[["monitor"]]){
 
     # Measure the time
-    start_time <- Sys.time()
+    print_start_message()
+	print_step("GREY", "Error handling")
 
     #-------------------------------------------------------------------------#
     monitor_df <- NULL |> monitor_start("Error handling", "Preparation")
@@ -169,6 +187,15 @@ frequencies <- function(data_frame,
         formats      <- evaluate_formats(formats_list)
     }
 
+    # Remove empty formats and throw a warning. This can happen if there is e.g.
+    # a typo in the format.
+    for (variable in names(formats)){
+        if (is.null(formats[[variable]])){
+            formats[[variable]] <- NULL
+            print_message("WARNING", "Format for variable '[variable]' does not exist and can't be applied.", variable = variable)
+        }
+    }
+
     ###########################################################################
     # Error handling
     ###########################################################################
@@ -184,7 +211,7 @@ frequencies <- function(data_frame,
 
     if (length(variables) <= 1){
         if (length(variables) == 0 || variables == ""){
-            message(" X ERROR: No valid <variables> provided. Frequencies will be aborted.")
+            print_message("ERROR", "No valid <variables> provided. Frequencies will be aborted.")
             return(invisible(NULL))
         }
     }
@@ -214,7 +241,7 @@ frequencies <- function(data_frame,
 
     # Check for invalid output option
     if (!tolower(output) %in% c("console", "text", "excel", "excel_nostyle")){
-        message(" ! WARNING: <Output> format '", output, "' not available. Using 'console' instead.")
+        print_message("WARNING", "<Output> format '[output]' not available. Using 'console' instead.", output = output)
 
         output <- "console"
     }
@@ -236,14 +263,14 @@ frequencies <- function(data_frame,
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Mean summary", "Summary")
     #-------------------------------------------------------------------------#
-    message("\n > Computing stats.")
+    print_step("MAJOR", "Computing stats.")
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Summarise mean table according to provided variables
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     if (print_miss && means){
-        message(" ~ NOTE: Wenn <print_miss> is TRUE, there will be no mean tables. <Means> is set to FALSE.")
+        print_message("NOTE", "Wenn <print_miss> is TRUE, there will be no mean tables. <Means> is set to FALSE.")
 
         means <- FALSE
     }
@@ -368,7 +395,7 @@ frequencies <- function(data_frame,
     }
 
     if (is.null(freq_tab)){
-        message(" X ERROR: Frequencies could not be computed.")
+        print_message("ERROR", "Frequencies could not be computed.")
         return(invisible(NULL))
     }
 
@@ -376,7 +403,7 @@ frequencies <- function(data_frame,
     # Prepare table format for output
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    message(" > Formatting tables.")
+    print_step("MAJOR", "Formatting tables.")
 
     if (output %in% c("console", "text")){
         #---------------------------------------------------------------------#
@@ -399,7 +426,7 @@ frequencies <- function(data_frame,
     }
     else if (output == "excel" || output == "excel_nostyle"){
         wb <- openxlsx2::wb_workbook() |>
-            prepare_styles(style)
+            prepare_styles(list("title" = titles, "footnote" = footnotes), style)
 
         monitor_df <- monitor_df |> monitor_end()
 
@@ -434,6 +461,7 @@ frequencies <- function(data_frame,
         #---------------------------------------------------------------------#
 
         if (output %in% c("console")){
+            print_closing()
             cat(paste(complete_table, collapse = "\n"), "\n\n")
         }
         # Open in text editor
@@ -444,6 +472,8 @@ frequencies <- function(data_frame,
             if (interactive()){
                 file.show(temp_file)
             }
+
+            print_closing()
         }
         else if (output == "excel" || output == "excel_nostyle"){
             # If no save path or file provided just open workbook
@@ -455,7 +485,7 @@ frequencies <- function(data_frame,
             else{
                 # If save path doesn't exist, just open workbook
                 if (!file.exists(style[["save_path"]])){
-                    message(" ! WARNING: Path does not exist: ", style[["save_path"]])
+                    print_message("WARNING", "Path does not exist: ", style[["save_path"]])
 
                     if (interactive()){
                         wb$open()
@@ -466,14 +496,16 @@ frequencies <- function(data_frame,
                     wb$save(file = paste0(style[["save_path"]], "/", style[["file"]]), overwrite = TRUE)
                 }
             }
+
+            print_closing()
         }
+    }
+    else{
+        print_closing()
     }
 
     monitor_df <- monitor_df |> monitor_end()
     monitor_df |> monitor_plot(draw_plot = monitor)
-
-    end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
-    message("\n- - - 'frequencies' execution time: ", end_time, " seconds\n")
 
     invisible(list("mean" = mean_tab,
                    "freq" = freq_tab))
@@ -990,8 +1022,9 @@ format_freq_text <- function(freq_tab,
             # by function down below will handle this message, so that it appears only
             # once and not for each loop.
             if (length(by) == 0){
-                message(" ~ NOTE: The format for variable '", variable, "' is a multilabel.\n",
-                        "         In this case cumulative results aren't computed properly.")
+                print_message("NOTE", c("The format for variable '[variable]' is a multilabel.",
+										"In this case cumulative results aren't computed properly."),
+										variable = variable, always_print = TRUE)
             }
         }
 
@@ -1161,8 +1194,9 @@ format_freq_excel <- function(wb,
             var_is_multilabel <- TRUE
 
             if (length(by) == 0){
-                message(" ~ NOTE: The format for variable '", variable, "' is a multilabel.\n",
-                        "         In this case cumulative results aren't computed properly.")
+                print_message("NOTE", c("The format for variable '[variable]' is a multilabel.",
+										"In this case cumulative results aren't computed properly."),
+										variable = variable, always_print = TRUE)
             }
 
             var_tab <- var_tab |> collapse::fsubset(TYPE != "total")
@@ -1322,12 +1356,13 @@ format_by_text <- function(mean_tab,
                            titles,
                            footnotes,
                            na.rm,
-                           means){
+                            means){
     # Print message if multilabels are applied
     for (variable in variables){
         if (is_multilabel(formats, variable)){
-            message(" ~ NOTE: The format for variable '", variable, "' is a multilabel.\n",
-                    "         In this case cumulative results aren't computed properly.")
+            print_message("NOTE", c("The format for variable '[variable]' is a multilabel.",
+									"In this case cumulative results aren't computed properly."),
+									variable = variable, always_print = TRUE)
         }
     }
 
@@ -1479,8 +1514,9 @@ format_by_excel <- function(mean_tab,
     # Print message if multilabels are applied
     for (variable in variables){
         if (is_multilabel(formats, variable)){
-            message(" ~ NOTE: The format for variable '", variable, "' is a multilabel.\n",
-                    "         In this case cumulative results aren't computed properly.")
+            print_message("NOTE", c("The format for variable '[variable]' is a multilabel.",
+									"In this case cumulative results aren't computed properly."),
+									variable = variable, always_print = TRUE)
         }
     }
 
@@ -1525,7 +1561,7 @@ format_by_excel <- function(mean_tab,
                 next
             }
 
-            message("   + ", paste0(by_var, " = ", value))
+            print_step("MINOR", "[by] = [value]", by = by, value = value)
 
             # Put additional by info together with the information which by variable
             # and which value is currently filtered.

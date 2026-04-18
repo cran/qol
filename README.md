@@ -10,11 +10,13 @@
 Version](https://www.r-pkg.org/badges/version/qol?color=green)](https://cran.r-project.org/package=qol)
 [![r-universe](https://s3rdia.r-universe.dev/badges/qol)](https://s3rdia.r-universe.dev/qol)
 [![DEVELOPMENT
-Version](https://img.shields.io/badge/GitHub-1.2.2-blue.svg)](https://github.com/s3rdia/qol)
+Version](https://img.shields.io/badge/GitHub-1.3.0-blue.svg)](https://github.com/s3rdia/qol)
 [![CRAN
 checks](https://badges.cranchecks.info/summary/qol.svg)](https://cran.r-project.org/web/checks/check_results_qol.html)
-[![r-universe
-checks](https://s3rdia.r-universe.dev/badges/:registry)](https://s3rdia.r-universe.dev/qol)
+[![Ask
+DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/s3rdia/qol)
+[![qol_blog](https://img.shields.io/badge/qol-Blog-036f30)](https://s3rdia.github.io/qol_blog/)
+[![status](https://tinyverse.netlify.app/badge/qol)](https://CRAN.R-project.org/package=qol)
 <!-- badges: end -->
 
 Bringing Powerful ‘SAS’ Inspired Concepts for more Efficient Bigger
@@ -247,14 +249,14 @@ tab1 <- my_data |>
                  output     = "excel_nostyle")
 
 # Now let's asume you create a bunch of different tables
-my_style <- my_style |> set_style_options(sheet_name = "sheet2")
-tab2     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
+set_style_options(sheet_name = "sheet2")
+tab2 <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
 
-my_style <- my_style |> set_style_options(sheet_name = "sheet3")
-tab3     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
+set_style_options(sheet_name = "sheet3")
+tab3 <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
 
-my_style <- my_style |> set_style_options(sheet_name = "sheet4")
-tab4     <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
+set_style_options(sheet_name = "sheet4")
+tab4 <- my_data  |> any_table(..., print = FALSE, output = "excel_nostyle")
 
 ...
 
@@ -266,7 +268,32 @@ combine_into_workbook(tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8,
                       file = "C:/My_folder/My_workbook.xlsx")
 ```
 
-## One Function to Join Them All
+## Save with protection and load as you like
+
+The package offers file saving in the standard rds format or the
+incredibly fast [fst](https://github.com/fstpackage/fst) format. By
+default the saving function write protects any existing files. So
+nothing gets overwritten unless you say so.  
+The loading functions are able to keep only the desired variables, but
+with a twist: You can write the variable names as you like. They are
+always found, whether you use small letters or big ones or something in
+between. And they are retrieved in provided order.
+
+``` r
+# Save file
+my_data |> save_file(path    = tempdir(),
+                     file    = "testfile.fst",
+                     keep    = c(income_class, sex, age, state, weight, NUTS3),
+                     where   = sex == 1)
+                     
+# Load file
+my_fst_where <- load_file(path  = tempdir(),
+                          file  = "testfile.fst",
+                          keep  = c(AGE, INCOME_class, State, weight),
+                          where = age > 65)
+```
+
+## One function to join them all
 
 Join two or more data frames together in one operation with multiple
 different join methods and join on differently named variables.
@@ -388,7 +415,36 @@ state_df <- state_df |>
       if.(state == 1, state_b = "State 1") |>
       if.(state < 11, state_b = "West") |>
     else.(            state_b = "East")
+    
+# Use if.() as a do-over-loop. In this kind of loop all vectors will be
+# advanced one iteration at a time in parallel.
+money    <- c("income", "expenses", "balance", "probability")
+new_vars <- c("var1", "var2", "var3", "var4")
+result   <- c(1, 2, 3, 4)
+
+do_over_df <- my_data |>
+      if.(money > 0, new_vars = result) |>
+    else.(           new_vars = 0)
+    
+# All these functions can be used in a do_if() situation and are aware of
+# overarching conditions.
+do_if_df <- my_data |>
+    do_if(state < 11) |>
+          if.(age < 18, age_cat = 1) |>
+        else.(          age_cat = 2) |>
+    else_do() |>
+          if.(age < 18, age_cat = 3) |>
+        else.(          age_cat = 4) |>
+    end_do()
 ```
+
+## Styled messages
+
+The functions in this package actually talk to the user and show what
+they are doing during runtime. The message system relies on pure base R
+and does not only provide built in message types, but also custom ones.
+
+<img src='man/figures/messages.png' alt='Messages'/>
 
 ## Monitoring
 
@@ -398,7 +454,7 @@ use of them and can show how they work internally like this:
 
 <img src='man/figures/monitor.png' alt='Monitoring example'/>
 
-## Customizing Visual Appearance
+## Customizing visual appearance
 
 Don’t like the colors of the built-in in RStudio themes? Can’t find a
 theme online that fits your liking? No Problem. With a simple function

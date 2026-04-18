@@ -56,6 +56,11 @@
 #' sort_df4 <- sort_df3 |> sort_plus(by       = age,
 #'                                   preserve = education)
 #'
+#' # Or do all at once
+#' sort_df5 <- my_data |> sort_plus(by       = c(sex, education),
+#'                                  preserve = state,
+#'                                  formats = list(education = education.))
+#'
 #' @export
 sort_plus <- function(data_frame,
                       by,
@@ -64,7 +69,8 @@ sort_plus <- function(data_frame,
                       formats  = c(),
                       na.last  = TRUE){
     # Measure the time
-    start_time <- Sys.time()
+    print_start_message()
+    print_step("GREY", "Error handling")
 
     ###########################################################################
     # Early evaluations
@@ -103,7 +109,7 @@ sort_plus <- function(data_frame,
     # If no value variables are provided abort
     if (length(by) <= 1){
         if (length(by) == 0 || by == ""){
-            message(" X ERROR: No <by> variables provided. Sorting will be aborted.")
+            print_message("ERROR", "No <by> variables provided. Sorting will be aborted.")
             return(invisible(NULL))
         }
     }
@@ -115,7 +121,7 @@ sort_plus <- function(data_frame,
     by <- data_frame |> part_of_df(by)
 
     if (length(by) == 0){
-        message(" X ERROR: No valid <by> variable provided. Sorting will be aborted.")
+        print_message("ERROR", "No valid <by> variable provided. Sorting will be aborted.")
         return(invisible(NULL))
     }
 
@@ -134,8 +140,8 @@ sort_plus <- function(data_frame,
     invalid_order <- any(!tolower(order) %in% c("ascending", "descending", "a", "d"))
 
     if (invalid_order){
-        message(" ! WARNING: <Order> other than 'ascending'/'a' or 'descending'/'d' specified, which is\n",
-                "            not allowed. 'ascending' will be used instead.")
+        print_message("WARNING", c("<Order> other than 'ascending'/'a' or 'descending'/'d' specified, which is\n",
+								   "not allowed. 'ascending' will be used instead."))
     }
 
     # Convert character expressions into numbers, which is needed later on in the
@@ -154,35 +160,32 @@ sort_plus <- function(data_frame,
     # If formats are provided, they will be used to temporarily recode new variables,
     # which are used to order the data frame in format order first.
     if (!is.null(formats)){
-        message("\n > Preparing formats")
-
-        extended_by    <- c()
-        extended_index <- 0
+        print_step("MAJOR", "Preparing formats")
 
         for (variable in names(formats)){
             if (is_multilabel(formats, variable)){
-                message(" ! WARNING: Applying a multilabel to variable '", variable, "' is not allowed.\n",
-                        "            Format won't be applied. Variable is skipped.")
+                print_message("WARNING", c("Applying a multilabel to variable '[variable]' is not allowed.\n",
+										   "Format won't be applied. Variable is skipped."), variable = variable)
                 next
             }
 
             if (!variable %in% names(data_frame)){
-                message(" ! WARNING: The variable '", variable, "' is not part of the data frame.\n",
-                        "            Format cannot be applied. Variable is skipped.")
+                print_message("WARNING", c("The variable '[variable]' is not part of the data frame.\n",
+										   "Format cannot be applied. Variable is skipped."), variable = variable)
                 next
             }
 
             if (!variable %in% by){
-                message(" ~ NOTE: Format for variable '", variable, "' is provided, but the variable itself.\n",
-                        "         is not part of the <by> variables. Format won't be applied. Variable is skipped.")
+                print_message("NOTE", c("Format for variable '[variable]' is provided, but the variable itself.",
+										"is not part of the <by> variables. Format won't be applied. Variable is skipped."), variable = variable)
                 next
             }
 
             # To make recode work "variable" can't be passed directly, because recode
             # would take it as "variable" instead of e.g. "age". Therefore a named list
             # with all the needed elements has to be constructed beforehand.
-            new_column    <- paste0(".sort_", variable)
-            argument_list <- list(data_frame)
+            new_column      <- paste0(".sort_", variable)
+            argument_list   <- list(data_frame)
             argument_list[[variable]] <- formats[[variable]]
 
             # Now use do.call to run e.g.: recode(data_frame, ".sort_age", age = formats[["age"]])
@@ -201,21 +204,12 @@ sort_plus <- function(data_frame,
                 levels  = label_levels,
                 ordered = TRUE)
 
-            extended_by    <- c(extended_by, new_column)
-            extended_index <- extended_index + 1
-        }
-
-        # Add extended variables before original by variables to sort them first
-        by <- c(extended_by, by)
-
-        # Take order from original by variables and pass them to the extended variables as well
-        if (extended_index > 0){
-            order <- c(order[1:extended_index], order)
+            by[by == variable] <- new_column
         }
     }
 
     if (!is.null(preserve)){
-        message("\n > Preserving: ", paste(preserve, collapse = ", "))
+        print_step("MAJOR", "Preserving: [var]", var = preserve)
 
         # If there are variables to preserve, they will be converted into factor
         # variables before sorting. To restore them afterwards, to there original
@@ -257,8 +251,7 @@ sort_plus <- function(data_frame,
     sort_vars <- grep("^\\.sort", names(data_frame), value = TRUE)
     sort_df   <- suppressMessages(sort_df |> dropp(sort_vars))
 
-    end_time <- round(difftime(Sys.time(), start_time, units = "secs"), 3)
-    message("\n- - - 'sort_plus' execution time: ", end_time, " seconds\n")
+    print_closing(5)
 
     sort_df
 }

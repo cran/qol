@@ -105,7 +105,7 @@ is_multilabel <- function(format_list, variable){
 #' Returns a data frame with interleaved ordered statistics columns.
 #'
 #' @noRd
-order_interleaved <- function(data_frame, patterns) {
+order_interleaved <- function(data_frame, patterns){
     # Find columns for each pattern
     columns <- lapply(patterns, function(pattern){
         grep(pattern, names(data_frame), value = TRUE)
@@ -161,7 +161,46 @@ unlist_variables <- function(var_names){
     # so that the function using this check can abort.
     tryCatch({
         collapse::funique(trimws(unlist(strsplit(var_names, "\\+"))))
-    }, error = function(e) {
+    }, error = function(e){
         NULL
     })
+}
+
+
+#' Check For Character Vectors
+#'
+#' @description
+#' Checks for valid character vectors.
+#'
+#' @param vector_to_check A vector to check.
+#'
+#' @return
+#' Returns TRUE or FALSE depending on the result.
+#'
+#' @noRd
+is_valid_vector <- function(vector_to_check){
+    length(vector_to_check) > 1 || !is.null(vector_to_check)
+}
+
+
+#' Catch Specific Message
+#'
+#' @description
+#' Catches a specific message and excludes it from the output while printing all
+#' other messages as normal.
+#'
+#' @param call_function A function which outputs messages.
+#' @param pattern The message pattern for which to look out for.
+#'
+#' @return
+#' Returns the call_functions return value.
+#'
+#' @noRd
+suppress_specific_message <- function(call_function, pattern){
+    withCallingHandlers(call_function,
+                        message = function(single_message){
+                            if (grepl(pattern, conditionMessage(single_message))){
+                                invokeRestart("muffleMessage")
+                            }
+                        })
 }
