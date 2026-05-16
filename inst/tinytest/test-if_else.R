@@ -87,7 +87,17 @@ state_df_b <- dummy_df |>
       if.(state < 11, state_b = "West") |>
     else.(            state_b = "East")
 
-expect_false(identical(state_df_a[["state_a"]], state_df_b[["state_b"]]), info = "if. and else_if. are not the same")
+expect_false(identical(state_df_a[["state_a"]], state_df_b[["state_b"]]),
+             info = "if. and else_if. are not the same")
+
+
+# if. converts NA values into format of follow up value
+result_df <- dummy_df |>
+         if.(state <= 3, var1 = NA, var2 = NA) |>
+    else_if.(state >  3, var1 = 1,  var2 = "Hello")
+
+expect_equal(collapse::funique(result_df[["var1"]])[-1], 1,       info = "if. converts NA values into format of follow up value")
+expect_equal(collapse::funique(result_df[["var2"]])[-1], "Hello", info = "if. converts NA values into format of follow up value")
 
 
 # if. can check for variable expressions starting with letter
@@ -156,6 +166,27 @@ expect_true(all(collapse::funique(do_over_df[["VAR2"]]) %in% c(2, 3, NA)), info 
 do_over_df <- do_over_df |> else.(vars2 = 4)
 expect_true(all(collapse::funique(do_over_df[["VAR1"]]) %in% c(1, 3, 4)), info = "if. as do over loop")
 expect_true(all(collapse::funique(do_over_df[["VAR2"]]) %in% c(2, 3, 4)), info = "if. as do over loop")
+
+
+# if. as do over loop can handle different values in the same variable
+dummy_df <- dummy_data(1000)
+class_df <- dummy_df |>
+         if.(income <     1,                 income1 = 0) |>
+    else_if.(income >=    1 & income < 4000, income1 = 1) |>
+    else_if.(income >= 4000 & income < 5000, income1 = 2) |>
+    else_if.(income >= 5000,                 income1 = 3)
+
+lower_bound <- c(   1, 4000)
+upper_bound <- c(4000, 5000)
+values      <- c(   1,    2)
+
+do_over_df <- class_df |>
+         if.(income <  1,                                  income2 = 0) |>
+    else_if.(income >= lower_bound & income < upper_bound, income2 = values) |>
+    else_if.(income >= 5000,                               income2 = 3)
+
+expect_equal(do_over_df[["income1"]], do_over_df[["income2"]],
+             info = "if. as do over loop can handle different values in the same variable")
 
 
 # do_if blocks
@@ -244,6 +275,13 @@ expect_true(nrow(test_df) < nrow(dummy_df), info = "Subset data frame with if., 
 expect_true(!NA %in% test_df[["sex"]], info = "Subset data frame with if., when only providing single variable as character")
 
 
+# Delete observations with 'delete' keyword
+test_df <- dummy_df |> if.(sex == 1, delete)
+
+expect_true(nrow(test_df) < nrow(dummy_df), info = "Delete observations with 'delete' keyword")
+expect_true(!1 %in% test_df[["sex"]], info = "Delete observations with 'delete' keyword")
+
+
 # if. as do over loop for subsetting
 vars   <- c("income", "balance")
 values <- c(1000, 0)
@@ -252,6 +290,20 @@ do_over_df <- dummy_df |> if.(vars > values)
 
 expect_true(collapse::fmin(do_over_df[["income"]])  > 1000, info = "if. as do over loop for subsetting")
 expect_true(collapse::fmin(do_over_df[["balance"]]) > 0,    info = "if. as do over loop for subsetting")
+
+# Warning on doubled logical operators
+test_df <- dummy_df |> if.((sex == 1 && education == "high") || sex == 2)
+
+expect_warning(print_stack_as_messages("WARNING"), "Replaced",  info = "Warning on doubled logical operators")
+
+unique_male   <- test_df |> if.(sex == 1)
+unique_male   <- collapse::funique(unique_male[["education"]])
+unique_female <- test_df |> if.(sex == 2)
+unique_female <- collapse::funique(unique_female[["education"]])
+
+expect_true("high" %in% unique_male, info = "Warning on doubled logical operators")
+expect_equal(length(unique_male), 1, info = "Warning on doubled logical operators")
+expect_true(all(c("low", "middle", "high") %in% unique_female), info = "Warning on doubled logical operators")
 
 
 # Abort subset with if., if variable is not part of the data frame
@@ -289,30 +341,6 @@ expect_warning(print_stack_as_messages("WARNING"), "No observations left in the 
                info = "where. aborts with a warning, if no observations left")
 
 ###############################################################################
-# Warning checks
-###############################################################################
-
-# else_do throws a warning when there is no active filter
-test_df <- dummy_df |> else_do()
-
-expect_warning(print_stack_as_messages("WARNING"), "No active filter variable found.",
-               info = "else_do throws a warning when there is no active filter")
-
-
-# end_do throws a warning when there is no active filter
-test_df <- dummy_df |> end_do()
-
-expect_warning(print_stack_as_messages("WARNING"), "No active filter variable found.",
-               info = "end_do throws a warning when there is no active filter")
-
-
-# end_all_do throws a warning when there is no active filter
-test_df <- dummy_df |> end_all_do()
-
-expect_warning(print_stack_as_messages("WARNING"), "No active filter variable found.",
-               info = "end_all_do throws a warning when there is no active filter")
-
-###############################################################################
 # Abort checks
 ###############################################################################
 
@@ -344,6 +372,27 @@ do_over_df <- dummy_df |> else_if.(vars > 0)
 
 expect_warning(print_stack_as_messages("WARNING"), "No assignments found. If you want to filter observations",
                info = "if. as do over loop aborts without variable assignment")
+
+
+# else_do aborts when there is no active filter
+test_df <- dummy_df |> else_do()
+
+expect_error(print_stack_as_messages("ERROR"), "No active filter variable found.",
+               info = "else_do aborts when there is no active filter")
+
+
+# end_do aborts when there is no active filter
+test_df <- dummy_df |> end_do()
+
+expect_error(print_stack_as_messages("ERROR"), "No active filter variable found.",
+               info = "end_do aborts when there is no active filter")
+
+
+# end_all_do aborts when there is no active filter
+test_df <- dummy_df |> end_all_do()
+
+expect_error(print_stack_as_messages("ERROR"), "No active filter variable found.",
+               info = "end_all_do aborts when there is no active filter")
 
 
 set_no_print()

@@ -110,6 +110,11 @@ The function is optimized to always take the fastest route, depending on the opt
 specified.
 }
 \examples{
+# NOTE: The used threads are set here to prevent a NOTE from the CRAN checks,
+#       otherwise this is not necessary.
+old_threads <- data.table::getDTthreads()
+data.table::setDTthreads(1)
+
 # Example formats
 age. <- discrete_format(
     "Total"          = 0:100,
@@ -125,11 +130,11 @@ sex. <- discrete_format(
     "Female" = 2)
 
 income. <- interval_format(
-    "Total                   "  = 0:99999,
-    "below 500"          = 0:499,
-    "500 to under 1000"  = 500:999,
-    "1000 to under 2000" = 1000:1999,
-    "2000 and more"      = 2000:99999)
+    "Total"              =    0:100000,
+    "below 500"          =    0:500,
+    "500 to under 1000"  =  500:1000,
+    "1000 to under 2000" = 1000:2000,
+    "2000 and more"      = 2000:100000)
 
 # Example data frame
 my_data <- dummy_data(1000)
@@ -188,10 +193,14 @@ no_group <- my_data |> summarise_plus(values = income)
 no_values  <- my_data |> summarise_plus(class = c(year, sex, age))
 no_nothing <- my_data |> summarise_plus()
 
+# NOTE: The used threads are set here to prevent a NOTE from the CRAN checks,
+#       otherwise this is not necessary.
+data.table::setDTthreads(old_threads)
+
 }
 \seealso{
 Creating formats: \code{\link[=discrete_format]{discrete_format()}} and \code{\link[=interval_format]{interval_format()}}.
 
 Functions that also make use of formats: \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}},
-\code{\link[=any_table]{any_table()}}, \code{\link[=recode]{recode()}}, \code{\link[=recode_multi]{recode_multi()}}, \code{\link[=transpose_plus]{transpose_plus()}}, \code{\link[=sort_plus]{sort_plus()}}.
+\code{\link[=any_table]{any_table()}}, \code{\link[=recode.]{recode.()}}, \code{\link[=recode_multi]{recode_multi()}}, \code{\link[=transpose_plus]{transpose_plus()}}, \code{\link[=sort_plus]{sort_plus()}}.
 }

@@ -7,7 +7,7 @@
 #' you can use formats to recode a variable into a new one.
 #'
 #' @param data_frame A data frame which contains the the original variables to recode.
-#' @param ... [recode()] Pass in the original variable name that should be recoded
+#' @param ... [recode.()] Pass in the original variable name that should be recoded
 #' along with the corresponding format container in the form: variable = format.
 #'
 #' In [recode_multi()] multiple variables can be recoded in one go and multilabels
@@ -17,7 +17,7 @@
 #' principle with this function.
 #'
 #' @details
-#' [recode()] is based on the 'SAS' function put(), which provides an efficient
+#' [recode.()] is based on the 'SAS' function put(), which provides an efficient
 #' and readable way, to generate new variables with the help of formats.
 #'
 #' When creating a format you can basically write code like you think: This new
@@ -26,7 +26,7 @@
 #' if_else statements.
 #'
 #' @return
-#' [recode()]: Returns a vector with recoded values.
+#' [recode.()]: Returns a vector with recoded values.
 #'
 #' @seealso
 #' Creating formats: [discrete_format()] and [interval_format()].
@@ -47,10 +47,10 @@
 #' my_data <- dummy_data(1000)
 #'
 #' # Call function
-#' my_data[["age_group1"]] <- my_data |> recode(age = age.)
+#' my_data[["age_group1"]] <- my_data |> recode.(age = age.)
 #'
 #' # Formats can also be passed as characters
-#' my_data[["age_group2"]] <- my_data |> recode(age = "age.")
+#' my_data[["age_group2"]] <- my_data |> recode.(age = "age.")
 #'
 #' # Multilabel recode
 #' sex. <- discrete_format(
@@ -59,11 +59,11 @@
 #'     "Female" = 2)
 #'
 #' income. <- interval_format(
-#'     "Total"              = 0:99999,
-#'     "below 500"          = 0:499,
-#'     "500 to under 1000"  = 500:999,
-#'     "1000 to under 2000" = 1000:1999,
-#'     "2000 and more"      = 2000:99999)
+#'     "Total"              =    0:100000,
+#'     "below 500"          =    0:500,
+#'     "500 to under 1000"  =  500:1000,
+#'     "1000 to under 2000" = 1000:2000,
+#'     "2000 and more"      = 2000:100000)
 #'
 #' # recode_multi() can not only apply multiple recodings, but it can also
 #' # apply multilabels.
@@ -74,8 +74,8 @@
 #' @rdname recode
 #'
 #' @export
-recode <- function(data_frame,
-                   ...){
+recode. <- function(data_frame,
+                    ...){
     # Measure the time
     print_start_message(suppress = TRUE)
 
@@ -149,18 +149,22 @@ recode <- function(data_frame,
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     if (identical(interval_variables, actual_variables)){
-        # Remove NA values
-        if (any(is.na(data_frame[[current_var]]))){
-        print_message("ERROR", c("Variable '[var]' has NA values. Interval merge only works without NA values.",
-								 "NA values have to be removed before calling recode. Recode will be aborted."), var = current_var)
-            return(invisible(NULL))
-        }
+        # Reduce multilabel formats to unique ranges which don't overlap
+        format_original <- format_df
+        format_df       <- format_df |> collapse::fsubset(from >= data.table::shift(cummax(to), fill = -Inf))
 
-        data_frame <- data_frame |>
-            collapse::fsubset(!is.na(data_frame[[current_var]]))
+        if (collapse::fnrow(format_original) > collapse::fnrow(format_df)){
+            print_message("WARNING", c("The format for '[current_var]' is a multilabel. A multilabel can't be fully applied in recode.",
+                                       "Only one of the matching categories will be applied."), current_var = current_var)
+        }
 
         # Get number of rows from data frame to compare after the merge to check for multilabel
         original_rows <- collapse::fnrow(data_frame)
+
+        # Separate NAs from rest of the data frame because the used join
+        # can't handle them
+        na_positions <- is.na(data_frame[[current_var]])
+        data_frame   <- data_frame |> collapse::fsubset(!na_positions)
 
         # Generate pseudo variables for range merging
         data_frame[["qol_from"]] <- data_frame[[as.character(current_var)]]
@@ -175,15 +179,16 @@ recode <- function(data_frame,
         data.table::setkey(format_dt, from, to)
 
         # Merge data frame with format by range
-        data_frame <- data.table::foverlaps(temp_dt, format_dt,
-                                            by.x = c("qol_from", "qol_to"),
-                                            by.y = c("from", "to")) |>
-                                  keep("label")
+        temp_dt <- data.table::foverlaps(temp_dt, format_dt,
+                                         by.x = c("qol_from", "qol_to"),
+                                         by.y = c("from", "to")) |>
+            keep("label")
 
-        if (collapse::fnrow(data_frame) > original_rows){
-            print_message("WARNING", c("The format for '[current_var]' is a multilabel. For interval formats this leads to",
-									   "doubling observations."), current_var = current_var)
-        }
+        # NA values are now inserted in the same spots as they where before to
+        # ensure that there will be no missmatch with the original data frame.
+        data_frame                <- rep(NA, original_rows)
+        data_frame[!na_positions] <- temp_dt[["label"]]
+        data_frame                <- data.table::as.data.table(data_frame)
     }
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

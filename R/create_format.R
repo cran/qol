@@ -4,7 +4,8 @@
 #'
 #' @description
 #' Create a format container which stores discrete or interval values
-#' with corresponding labels that can be applied by using [summarise_plus()].
+#' with corresponding labels that can be applied by using functions capable of
+#' using formats.
 #'
 #' Create a format container independent from any data frame. Define which values
 #' should be recoded into which new categories, if the format is applied to
@@ -13,8 +14,12 @@
 #' a multilabel.
 #' It is recommended to let format names end with a dot to make them stand out.
 #'
-#' @param ... List all the desired recodings/recoding ranges. Every element contains a text for
+#' @param ... List all the desired recodings/recoding ranges. Every element containsa text for
 #' the new category name and the values/value ranges which should be recoded into this new category.
+#' @param include_lower TRUE by default. Whether to include lower bound value in
+#' interval formats.
+#' @param include_upper FALSE by default. Whether to include upper bound value in
+#' interval formats.
 #'
 #' @details
 #' The concept of having formats as molds or stencils to put the data through, is inspired by
@@ -49,7 +54,7 @@
 #'
 #' @seealso
 #' Functions that can handle formats: [summarise_plus()], [frequencies()], [crosstabs()],
-#' [any_table()], [recode_multi()], [transpose_plus()], [sort_plus()].
+#' [any_table()], [recode.()], [recode_multi()], [transpose_plus()], [sort_plus()].
 #'
 #' @examples
 #' age. <- discrete_format(
@@ -72,11 +77,11 @@
 #'     "high education"   = "high")
 #'
 #' income. <- interval_format(
-#'     "Total"              = 0:99999,
-#'     "below 500"          = 0:499,
-#'     "500 to under 1000"  = 500:999,
-#'     "1000 to under 2000" = 1000:1999,
-#'     "2000 and more"      = 2000:99999)
+#'     "Total"              =    0:100000,
+#'     "below 500"          =    0:500,
+#'     "500 to under 1000"  =  500:1000,
+#'     "1000 to under 2000" = 1000:2000,
+#'     "2000 and more"      = 2000:100000)
 #'
 #' state. <- discrete_format(
 #'     "Germany"                       = 1:16,
@@ -111,9 +116,9 @@
 #' # know exactly what the lowest and highest values are.
 #' income. <- interval_format(
 #'     "Total"              = c("low", "high"),
-#'     "below 500"          = c("low", 499),
-#'     "500 to under 1000"  = 500:999,
-#'     "1000 to under 2000" = 1000:1999,
+#'     "below 500"          = c("low", 500),
+#'     "500 to under 1000"  = 500:1000,
+#'     "1000 to under 2000" = 1000:2000,
 #'     "2000 and more"      = c(2000, "high"))
 #'
 #' @rdname formats
@@ -185,7 +190,9 @@ discrete_format <- function(...){
 #' @rdname formats
 #'
 #' @export
-interval_format <- function(...){
+interval_format <- function(...,
+                            include_lower = TRUE,
+                            include_upper = FALSE){
     # Measure the time
     print_start_message(suppress = TRUE)
 
@@ -228,9 +235,12 @@ interval_format <- function(...){
 
         # Low always ends up in "to", because it is a character value and comes alphabetically after high
         if ("low" %in% tolower(to)){
-            # Swap the real not "low" value to "to" and insert a pseudo low number in "from"
-            to[tolower(to) == "low"]           <- from[tolower(to) == "low"]
-            from[tolower(from) == tolower(to)] <- -.Machine[["double.xmax"]]
+            # Swap the real not "low" value to "to" and insert a pseudo low number in "from".
+            # Capture the original "low" positions first, to just replace these and
+            # preserve single value entries.
+            low_entries              <- to == "low"
+            to[tolower(to) == "low"] <- from[tolower(to) == "low"]
+            from[low_entries & tolower(from) == tolower(to)] <- -.Machine[["double.xmax"]]
 
             from <- as.numeric(from)
         }
@@ -245,6 +255,20 @@ interval_format <- function(...){
         }
 
         to <- as.numeric(to)
+    }
+
+    # Get positions where "from" and "to" are equal. This is necessary to capture
+    # occasions were a single value and not a range should be included in the format.
+    single_value <- from == to
+
+    # Add the smallest piece to "from" in case lower bound should not be included
+    if (!include_lower){
+        from[!single_value] <- from[!single_value] - .Machine[["double.eps"]] * 1000
+    }
+
+    # Subtract the smallest piece from "to" in case upper bound should not be included
+    if (!include_upper){
+        to[!single_value] <- to[!single_value] - .Machine[["double.eps"]] * 1000
     }
 
     print_closing()

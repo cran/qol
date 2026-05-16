@@ -445,11 +445,11 @@ result_list <- dummy_df |>
                       "Male"   = 1,
                       "Female" = 2),
                       income = interval_format(
-                          "Total"              = 0:99999,
-                          "below 500"          = 0:499,
-                          "500 to under 1000"  = 500:999,
-                          "1000 to under 2000" = 1000:1999,
-                          "2000 and more"      = 2000:99999)),
+                          "Total"              =    0:100000,
+                          "below 500"          =    0:500,
+                          "500 to under 1000"  =  500:1000,
+                          "1000 to under 2000" = 1000:2000,
+                          "2000 and more"      = 2000:100000)),
                   output = "excel_nostyle",
                   print  = FALSE)
 
@@ -680,6 +680,7 @@ tab1 <- dummy_df |>
                columns = "sex",
                values  = weight,
                output  = "excel_nostyle",
+               style   = my_style,
                print   = FALSE)
 
 my_style <- my_style |> modify_output_style(sheet_name = "tab2")
@@ -690,6 +691,7 @@ tab2 <- dummy_df |>
                values  = weight,
                by      = education,
                output  = "excel_nostyle",
+               style   = my_style,
                print   = FALSE)
 
 temp_file <- tempfile(fileext = ".xlsx")
@@ -699,6 +701,18 @@ result <- combine_into_workbook(tab1, tab2, file = temp_file)
 
 expect_inherits(result, c("wbWorkbook", "R6"), info = "Combine tables into a single workbook")
 expect_true(file.exists(temp_file), info = "Combine tables into a single workbook")
+
+result_list <- dummy_df |>
+    any_table(rows     = "age",
+              columns  = "sex",
+              values   = weight,
+              output   = "excel_nostyle",
+              workbook = tab1,
+              style    = my_style,
+              print    = FALSE)
+
+expect_inherits(result_list, "list", info = "Combine tables into a single workbook")
+expect_equal(length(result_list), 3, info = "Combine tables into a single workbook")
 
 
 # any_table throws a warning with missing statistic extension in pre summarised data
@@ -893,6 +907,17 @@ expect_warning(print_stack_as_messages("WARNING"), "Subsetting variable 'sex' by
             info = "any_table aborts with no valid values after calculating the results")
 expect_error(print_stack_as_messages("ERROR"), "After calculating the results, there are no valid values",
             info = "any_table aborts with no valid values after calculating the results")
+
+
+# any_table aborts, if invalid workbook is passed
+result_list <- dummy_df |>
+    any_table(rows     = "age",
+              columns  = "sex",
+              workbook = list("test" = "test"),
+              print    = FALSE)
+
+expect_error(print_stack_as_messages("ERROR"), "Workbook object is invalid. You have to provide a workbook object",
+             info = "any_table aborts, if invalid workbook is passed")
 
 
 set_style_options(as_heatmap = FALSE)

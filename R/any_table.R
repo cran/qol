@@ -111,7 +111,7 @@
 #'
 #' Additional functions that can handle styles: [export_with_style()]
 #'
-#' Additional functions that can handle formats: [summarise_plus()], [recode()],
+#' Additional functions that can handle formats: [summarise_plus()], [recode.()],
 #' [recode_multi()], [transpose_plus()], [sort_plus()]
 #'
 #' @examples
@@ -436,6 +436,24 @@ any_table <- function(data_frame,
     ###########################################################################
     # Error handling
     ###########################################################################
+
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # Workbook
+    #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+    # Check whether the whole result list of one of the tabulation functions was passed
+    if (!is.null(workbook) && is.list(workbook)){
+        # If the workbook object is part of the list, extract it
+        if ("workbook" %in% names(workbook)){
+            workbook <- workbook[["workbook"]]
+        }
+        # If the list is some other list without workbook object, abort
+        else{
+            print_message("ERROR", c("Workbook object is invalid. You have to provide a workbook object",
+                                     "created with one of the tabulation functions. Tabulation will be aborted."))
+            return(invisible(NULL))
+        }
+    }
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Row variables
@@ -1962,6 +1980,22 @@ any_table <- function(data_frame,
 
         monitor_df <- monitor_df |> monitor_next("Output tables", "Output tables")
 
+        # Check if only save path or file name is specified. If only one is specified
+        # print a note. Otherwise the file would not be saved and opened without a
+        # hint to why the file wasn't saved.
+        if (is.null(style[["save_path"]]) + is.null(style[["file"]]) == 1){
+            if (is.null(style[["save_path"]])){
+                print_message("NOTE", c("No save path specified. Both save path and file name with extension",
+                                        "need to be specified in the global options or style parameter for",
+                                        "the file to be saved. File won't be saved."))
+            }
+            else{
+                print_message("NOTE", c("No file name specified. Both save path and file name with extension",
+                                        "need to be specified in the global options or style parameter for",
+                                        "the file to be saved. File won't be saved."))
+            }
+        }
+
         # If no save path or file provided just open workbook
         if (is.null(style[["save_path"]]) || is.null(style[["file"]])){
             if (interactive()){
@@ -1979,7 +2013,22 @@ any_table <- function(data_frame,
             }
             # Save file
             else{
-                wb$save(file = paste0(style[["save_path"]], "/", style[["file"]]), overwrite = TRUE)
+                extension <- tolower(tools::file_ext(style[["file"]]))
+
+                # CSV export is based on the actual data frame
+                if (extension == "csv"){
+                    any_tab |> data.table::fwrite(file = paste0(style[["save_path"]], "/", style[["file"]]),
+                                                  sep  = ";",
+                                                  dec  = ",")
+                }
+                # While XLSX export is based on the workbook
+                else if (extension == "xlsx"){
+                    wb$save(file = paste0(style[["save_path"]], "/", style[["file"]]), overwrite = TRUE)
+                }
+                # If there is no extension or a wrong one, auto correct it
+                else{
+                    wb$save(file = paste0(style[["save_path"]], "/", basename(style[["file"]]), ".xlsx"), overwrite = TRUE)
+                }
             }
         }
     }
@@ -2469,7 +2518,7 @@ build_multi_header <- function(var_names,
         block_lengths <- rle(root_names)[["lengths"]]
 
         # Generate block headlines
-        block_labels <- var_labels[startsWith(names(var_labels), "block")]
+        block_labels <- var_labels[startsWith(tolower(names(var_labels)), "block")]
         block_labels <- fill_or_trim(block_labels, length(block_lengths))
         block_labels <- rep(block_labels, times = block_lengths)
         block_labels <- data.table::as.data.table(as.list(block_labels), stringsAsFactors = FALSE)
@@ -3001,7 +3050,7 @@ combine_into_workbook <- function(...,
 
         meta <- table[["meta"]]
 
-        wb <- wb |> prepare_styles(meta[["style"]])
+        wb <- wb |> prepare_styles(list("title" = meta[["titles"]], "footnote" = meta[["footnotes"]]), meta[["style"]])
 
         # Style data frame for export
         if (is.character(meta[[length(meta)]]) && meta[[length(meta)]] == "DATA"){

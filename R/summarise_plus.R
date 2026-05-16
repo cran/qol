@@ -78,9 +78,14 @@
 #' Creating formats: [discrete_format()] and [interval_format()].
 #'
 #' Functions that also make use of formats: [frequencies()], [crosstabs()],
-#' [any_table()], [recode()], [recode_multi()], [transpose_plus()], [sort_plus()].
+#' [any_table()], [recode.()], [recode_multi()], [transpose_plus()], [sort_plus()].
 #'
 #' @examples
+#' # NOTE: The used threads are set here to prevent a NOTE from the CRAN checks,
+#' #       otherwise this is not necessary.
+#' old_threads <- data.table::getDTthreads()
+#' data.table::setDTthreads(1)
+#'
 #' # Example formats
 #' age. <- discrete_format(
 #'     "Total"          = 0:100,
@@ -96,11 +101,11 @@
 #'     "Female" = 2)
 #'
 #' income. <- interval_format(
-#'     "Total                   "  = 0:99999,
-#'     "below 500"          = 0:499,
-#'     "500 to under 1000"  = 500:999,
-#'     "1000 to under 2000" = 1000:1999,
-#'     "2000 and more"      = 2000:99999)
+#'     "Total"              =    0:100000,
+#'     "below 500"          =    0:500,
+#'     "500 to under 1000"  =  500:1000,
+#'     "1000 to under 2000" = 1000:2000,
+#'     "2000 and more"      = 2000:100000)
 #'
 #' # Example data frame
 #' my_data <- dummy_data(1000)
@@ -158,6 +163,10 @@
 #' # And also without values
 #' no_values  <- my_data |> summarise_plus(class = c(year, sex, age))
 #' no_nothing <- my_data |> summarise_plus()
+#'
+#' # NOTE: The used threads are set here to prevent a NOTE from the CRAN checks,
+#' #       otherwise this is not necessary.
+#' data.table::setDTthreads(old_threads)
 #'
 #' @export
 summarise_plus <- function(data_frame,
@@ -436,6 +445,8 @@ summarise_plus <- function(data_frame,
 
     # Pre summarise data frame if only sums as statistics selected
     if (flag_shortcut){
+        print_step("MAJOR", "Pre summarise")
+
         monitor_df <- monitor_df |> monitor_end()
 
         # Summarise first

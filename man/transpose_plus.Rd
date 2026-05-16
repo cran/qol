@@ -93,11 +93,11 @@ sex2. <- discrete_format(
     "Female" = "Female")
 
 income. <- interval_format(
-    "Total"              = 0:99999,
-    "below 500"          = 0:499,
-    "500 to under 1000"  = 500:999,
-    "1000 to under 2000" = 1000:1999,
-    "2000 and more"      = 2000:99999)
+    "Total"              =    0:100000,
+    "below 500"          =    0:500,
+    "500 to under 1000"  =  500:1000,
+    "1000 to under 2000" = 1000:2000,
+    "2000 and more"      = 2000:100000)
 
 # Example data frame
 my_data <- dummy_data(1000)
@@ -111,11 +111,35 @@ long_to_wide <- my_data |>
                    weight   = weight,
                    na.rm    = TRUE)
 
-# Transpose back from wide to long
+# Transpose back from wide to long and put results below each other. To trigger
+# this behavior every list entry in pivot has to have a different name.
 wide_to_long <- long_to_wide |>
     transpose_plus(preserve = c(year, age),
                    pivot    = list(sex       = c("Total", "Male", "Female"),
                                    education = c("low", "middle", "high")))
+
+# Transpose from long to wide and use a multilabel to generate additional categories
+long_to_wide <- my_data |>
+    transpose_plus(preserve = c(year, age),
+                   pivot    = "sex",
+                   values   = c(income, weight),
+                   formats  = list(sex = sex., age = age.),
+                   weight   = weight,
+                   na.rm    = TRUE) |>
+    rename_multi("income_Total"  = "Total",
+                 "income_Male"   = "Male",
+                 "income_Female" = "Female")
+
+# Transpose back from wide to long but this time put results side by side.
+# To do that every list entry has to have the same name. The values parameter
+# is then used to give the new value variables a name. For the expressions of
+# the new categorical variable the variable names from the first pivot list
+# entry are used.
+wide_to_long <- long_to_wide |>
+    transpose_plus(preserve = c(year, age),
+                   values   = c(income, weight),
+                   pivot    = list(sex = c("Total", "Male", "Female"),
+                                   sex = c("weight_Total", "weight_Male", "weight_Female")))
 
 # Nesting variables in long to wide transposition
 nested <- my_data |>
@@ -140,5 +164,5 @@ both <- my_data |>
 Creating formats: \code{\link[=discrete_format]{discrete_format()}} and \code{\link[=interval_format]{interval_format()}}.
 
 Functions that also make use of formats: \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}},
-\code{\link[=any_table]{any_table()}}, \code{\link[=recode]{recode()}}, \code{\link[=recode_multi]{recode_multi()}}, \code{\link[=sort_plus]{sort_plus()}}.
+\code{\link[=any_table]{any_table()}}, \code{\link[=recode.]{recode.()}}, \code{\link[=recode_multi]{recode_multi()}}, \code{\link[=sort_plus]{sort_plus()}}.
 }

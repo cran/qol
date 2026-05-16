@@ -55,7 +55,7 @@ utils::globalVariables(c("qol_ID", "qol_from", "qol_to", "from", "to", "delta",
 # Internal environment to store message styling options
 .qol_messages <- new.env(parent = emptyenv())
 .qol_messages[["format"]] <- list(utf8                = l10n_info()[["UTF-8"]] && .Platform$GUI != "Rgui",
-                                  time_color          = "#565656",
+                                  time_color          = "#6B6B6B",
                                   note_ansi           = hex_to_ansi(" \u2139\ufe0f NOTE: ", hex_color = "#63C2C9", bold = TRUE),
                                   note_pt             = hex_to_ansi(" ~ NOTE: ",            hex_color = "#63C2C9", bold = TRUE),
                                   note_indent_ansi    = hex_to_ansi(" \u2139\ufe0f\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0", hex_color = "#63C2C9", bold = TRUE),
@@ -72,10 +72,10 @@ utils::globalVariables(c("qol_ID", "qol_from", "qol_to", "from", "to", "delta",
                                   neutral_pt          = hex_to_ansi("\u00a0", hex_color = "#63C2C9", bold = TRUE),
                                   neutral_indent_ansi = hex_to_ansi("\u00a0", hex_color = "#63C2C9", bold = TRUE),
                                   neutral_indent_pt   = hex_to_ansi("\u00a0", hex_color = "#63C2C9", bold = TRUE),
-                                  grey_ansi           = hex_to_ansi(" \u2601 ",                 hex_color = "#565656", bold = TRUE),
-                                  grey_pt             = hex_to_ansi(" * ",                      hex_color = "#565656", bold = TRUE),
-                                  grey_indent_ansi    = hex_to_ansi("\u00a0\u00a0\u00a0\u00a0", hex_color = "#565656", bold = TRUE),
-                                  grey_indent_pt      = hex_to_ansi("\u00a0\u00a0\u00a0",       hex_color = "#565656", bold = TRUE),
+                                  grey_ansi           = hex_to_ansi(" \u2601 ",                 hex_color = "#6B6B6B", bold = TRUE),
+                                  grey_pt             = hex_to_ansi(" * ",                      hex_color = "#6B6B6B", bold = TRUE),
+                                  grey_indent_ansi    = hex_to_ansi("\u00a0\u00a0\u00a0\u00a0", hex_color = "#6B6B6B", bold = TRUE),
+                                  grey_indent_pt      = hex_to_ansi("\u00a0\u00a0\u00a0",       hex_color = "#6B6B6B", bold = TRUE),
                                   major_ansi          = hex_to_ansi(" \u23f3\ufe0f ",           hex_color = "#32CD32", bold = TRUE),
                                   major_pt            = hex_to_ansi(" > ",                      hex_color = "#32CD32", bold = TRUE),
                                   major_indent_ansi   = hex_to_ansi("\u00a0\u00a0\u00a0\u00a0", hex_color = "#32CD32", bold = TRUE),
@@ -84,10 +84,12 @@ utils::globalVariables(c("qol_ID", "qol_from", "qol_to", "from", "to", "delta",
                                   minor_pt            = hex_to_ansi(" \u00a0\u00a0+ ",                  hex_color = "#32CD32", bold = TRUE),
                                   minor_indent_ansi   = hex_to_ansi("\u00a0\u00a0\u00a0\u00a0\u00a0",   hex_color = "#32CD32", bold = TRUE),
                                   minor_indent_pt     = hex_to_ansi("\u00a0\u00a0\u00a0",               hex_color = "#32CD32", bold = TRUE))
-.qol_messages[["stack"]]           <- list()
-.qol_messages[["start_time"]]      <- NULL
-.qol_messages[["timer"]]           <- NULL
-.qol_messages[["last_message"]]    <- NULL
-.qol_messages[["last_session"]]    <- NULL
-.qol_messages[["last_execution"]]  <- NULL
-.qol_messages[["no_print"]]        <- FALSE
+.qol_messages[["custom_types"]]   <- list()
+.qol_messages[["stack"]]          <- list()
+.qol_messages[["start_time"]]     <- NULL
+.qol_messages[["timer"]]          <- NULL
+.qol_messages[["last_message"]]   <- NULL
+.qol_messages[["last_session"]]   <- NULL
+.qol_messages[["last_execution"]] <- NULL
+.qol_messages[["no_print"]]       <- FALSE
+.qol_messages[["no_color"]]       <- nzchar(Sys.getenv("NO_COLOR"))

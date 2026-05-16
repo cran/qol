@@ -1,10 +1,55 @@
+# qol 1.3.1
+
+### Renamed functions
+
+* `compute.()`, `recode.()`: Both functions have been renamed and now have a "." at the end to prevent masking errors in combination with `dplyr`. (28.04.2026)
+
+### New functionality
+
+* `set_no_color()`: Suppresses the color codes so that messages can be printed clean. The option is auto controlled on load via the system variable `NO_COLOR` but can also be set individually by this function. Console output in e.g. RStudio vs. output to a logging system should be handled automatically rightnow. (25.04.2026, thanks to @TroyHernandez)
+* `set_up_custom_message()`: Waiting symbols as well as the color of the time stamps can now be customized. (25.04.2026)
+* `print_step()`: Now has a new `in_place` parameter, which prints the message on the same line as before, instead of in the next line. This can e.g. be used inside loops as follows. (29.04.2026)
+* `any_table()`, `export_with_style()`: If the whole result list from these functions is passed for the `workbook` parameter, the functions now are able to extract the actual workbook from the list and run without error. Additionally if a list is passed, which is not a result list containing the workbook, the functions error and abort execution. (05.05.2026)
+* `transpose_plus()`: In a wide to long transposition it is now possible to not only put results below each other, but also side by side. (11.05.2026)
+* `any_table()`, `frequencies()`, `crosstabs()`: If 'csv' is specified as extension in the `file name` set in the global options or the style parameter the result table will then be exported as 'csv'. Otherwise the actual workbook will be exported as `xlsx` as normal. (13.05.2026)
+* `if.()`, `else_if.()`: The ":" can now be used in conditions as a placeholder for "starts with" ("text:"), "ends with" (":text") and "contains" (":text:"). (21.03.2026)
+* `if.()`: If the new `delete` keyword is passed instead of a variable assignment, the provided condition deletes observations instead of keeping them. (15.05.2026)
+
+### Changed functionality
+
+* `set_up_custom_message()`: The way custom messages are set up has slightly changed and will break existing code. Custom message types are now stored globally and are called within quotation marks like all the other built-in message types. See updated README for the new handling. (25.04.2026)
+* `interval_format()`: The function had a flaw in that it always included the lower and upper bound values. The "workaround" in the examples to pass bounds like e.g. 0:499, 500:999, would miss values between 499 and 500 or 999 and 1000. The function now got two new parameters `inlcude_lower` (TRUE) and `include_upper` (FALSE), which by default read as "from ... to under ...". Which means bounds can be passed like 0:500, 500:1000 without overlapping. (07.05.2026)
+* `recode.()`: Interval formats can now be applied even though a variable has NA values. NA values are taken care of automatically instead of the function aborting with an error. Additionally multilabels are reduced so that no additional observations are created. (08.05.2026)
+
+### Fixed
+
+* `combine_into_workbook()`: Titles and footnotes are now styled again. (18.04.2026)
+* `compute.()`: If a variable was all NA, a type miss match happend, leading to the function beeing aborted. This is fixed now. (24.04.2026)
+* `print_step()`: Waiting character "?" is now drawn as intended in non-utf8 mode. (25.04.2026)
+* `compute.()`, `if.()`, `else_if.()`, `else.()`: Now detect vectors for do-over-loops in every place. Previously do over loop was only detected, if the variable for assignment was a vector. (30.04.2026)
+* `compute.()`: Doesn't crash anymore, if multiple values are assigned to the same variable in a do over loop. (30.04.2026)
+* `dummy_data()`: Variable `income_class` was miss matched in some places due to it being generated to early. This is fixed now. (30.04.2026)
+* `any_table()`: If the `block` keyword was used in `var_labels` parameter and all `block` keywords weren't written in lower case, the column header generation crashed. This is fixed now. (04.05.2026)
+* `interval_format()`: Now preserves single values. (08.05.2026)
+* `dummy_data()`: `person_id` is now adjusted after taking sample to have continuous numbers. (08.05.2026)
+
+### Additionally
+
+* Message time stamps are now drawn in a lighter grey to enhance visibility on darker themes. (20.04.2026)
+* `else_do()`, `end_do()`, `end_all_do()`: Functions now throw errors instead of warnings, if `do_if()` is missing. (23.04.2026)
+* `any_table()`, `frequencies()`, `crosstabs()`, `export_with_style()`: If only the `save_path` or the `file name` is specified in the global options or the style parameter there will now be a note stating that something is missing. (13.05.2026)
+* `if.()`, `else_if.()`: `&&` and `||` will now be converted into `&` and `|`. Additionally a warning is displayed. (15.05.2026)
+* Set the used threads from data.table to 2 for the `summarise_plus()` examples, because the CRAN server throws a NOTE for the r-devel-linux-x86_64-debian-gcc: "Examples with CPU time > 2.5 times elapsed time". (16.05.2026)
+
 # qol 1.3.0
+
+CRAN release on 18.04.2026
 
 ### New functions
 
 * `row_calculation()`: Perform row wise calculations on numeric variables. (12.03.2026)
 * `do_if()`, `else_do()`, `end_do()`, `end_all_do()`: These functions create overarching filter variables. When used with functions capable of handling these filter variables, it is possible to create more readable if-blocks without writing the same condition over and over again. (21.03.2026)
-* `compute()`: Compute new variables without having to write the name of the data frame multiple times. (23.03.2026)
+* `compute.()`: Compute new variables without having to write the name of the data frame multiple times. (23.03.2026)
 * `save_file()`, `save_file_multi()`: Saves fst and rds files. Offers variable selection and observation subsetting. By default the function has a write protection, which has to be explicitly turned off to be able to overwrite files. (28.03.2026)
 * `load_file()`, `load_file_multi()`: Loads fst and rds files. Provided variables to keep are read in case insensitive and are returned in provided order. Additionally a subset can be defined directly. Loaded files in the multi version can be stacked or output as a list. (28.03.2026)
 * `set_threads()`, `get_threads()`: Globally sets/gets the number of used threads for the save and load file functions. (28.03.2026)
@@ -24,7 +69,7 @@
 * `if.()`, `else_if.()`: The ":" can now be used in conditions as a placeholder for "starts with" ("text:"), "ends with" (":text") and "contains" (":text:"). (21.03.2026)
 * `if.()`, `else_if.()`, `else.()`: All functions are now able to handle vectors in a do over loop. Meaning, that if using vectors in conditions or assignments, the functions will iterate over each vector simultaneously. (21.03.2026)
 * `if.()`, `else_if.()`, `else.()`: Can be used within the new `do_if()` context. (21.03.2026)
-* `if.()`, `else_if.()`, `else.()`: Since the functions now make use of the new `compute()`, they are able to do more than just simple variable assignments and can also perform calculations. (23.03.2026)
+* `if.()`, `else_if.()`, `else.()`: Since the functions now make use of the new `compute.()`, they are able to do more than just simple variable assignments and can also perform calculations. (23.03.2026)
 * `row_calculation()`: Now has an optional rounding parameter. (23.03.2026)
 * `dummy_data()`: Added `weight_per_year` variable. (25.03.2026)
 * `build_master()`: Added `with_monitor` parameter, which allows to visualize the time consumption of the individual scripts. (26.03.2026)
@@ -78,7 +123,7 @@
 
 ### Optimization
 
-* `if.()`, `else_if.()`, `else.()`: With the new `compute()` they now perform variable assignments and calculations in a single pass instead of per iteration. (23.03.2026)
+* `if.()`, `else_if.()`, `else.()`: With the new `compute.()` they now perform variable assignments and calculations in a single pass instead of per iteration. (23.03.2026)
 * `running_number()`: Now uses faster `data.table` function. (23.03.2026)
 * `round_values()`: Now uses vectorized math to reduce memory allocation. (23.03.2026)
 * `dummy_data()`: Reduced memory allocation. (25.03.2026)
@@ -96,9 +141,11 @@
 * Added repository to DeepWiki and added badge to README. (29.03.2026)
 * `any_table()`, `export_with_style()`: Added examples for `combine_into_workbook()`. (10.04.2026)
 * `any_table()`: When row header labels are suppressed, the excess slashes are now removed. (10.04.2026)
-* `compute()`: Now throws a warning, if duplicate variable names are used, but goes on computing the valid variables. (15.04.2026)
+* `compute.()`: Now throws a warning, if duplicate variable names are used, but goes on computing the valid variables. (15.04.2026)
 
 # qol 1.2.2
+
+CRAN release on 10.03.2026
 
 ### New functions
 
@@ -147,6 +194,8 @@
 
 # qol 1.2.1
 
+CRAN release on 11.02.2026
+
 ### New functions
 
 * `expand_formats()`: Generates a data frame which contains all nested combinations of the provided format labels. (15.01.2026)
@@ -176,7 +225,7 @@
 * `frequencies()`: Until now the function always printed a means and a frequencies table as default. Now it only prints a frequencies table as default to get the main results as fast as possible on screen. The means table can be activated again with the new `means` parameter. (17.01.2026)
 * `frequencies()`: When using multiple by variables with excel `output`, worksheets are now ordered in provided variable order instead of alternating. (17.01.2026)
 * `mark_case()`: Now outputs a variable with 1/0 instead of TRUE/FALSE. (18.01.2026)
-* `recode()`: Removed `new_var` parameter. Recode now doesn't return the whole data frame anymore, but only the recoded variable as a vector. So instead of writing `my_data <- my_data |> recode("age_group", age = age.)`, the syntax is now more natural like this `my_data[["age_group"]] <- my_data |> recode(age = age.)`. (21.01.2026)
+* `recode.()`: Removed `new_var` parameter. Recode now doesn't return the whole data frame anymore, but only the recoded variable as a vector. So instead of writing `my_data <- my_data |> recode.("age_group", age = age.)`, the syntax is now more natural like this `my_data[["age_group"]] <- my_data |> recode.(age = age.)`. (21.01.2026)
 * `running_number()`, `mark_case()`, `retain_value()`, `retain_sum()`: Removed `var_name` parameter. Functions now don't return the whole data frame anymore, but only the retained variable as a vector or list of vectors. So instead of writing e.g. `my_data <- my_data |> running_number("running")`, the syntax is now more natural like this `my_data[["running"]] <- my_data |> running_number()`. (22.01.2026)
 * `any_table()`: When using pre summarised data, the error handling is now less restrict. Instead of aborting if the TYPE variable is missing, it is now auto generated. Additionally if statistic extensions are missing to the value variable names, the function now doesn't abort, instead extensions are now added according to the provided statistics and a warning is thrown. (23.01.2026)
 * `summarise_plus()`: Numeric values stored as characters are now returned as character, while originally numeric variables stay numeric. (24.01.2026)

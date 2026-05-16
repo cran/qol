@@ -10,7 +10,7 @@
 Version](https://www.r-pkg.org/badges/version/qol?color=green)](https://cran.r-project.org/package=qol)
 [![r-universe](https://s3rdia.r-universe.dev/badges/qol)](https://s3rdia.r-universe.dev/qol)
 [![DEVELOPMENT
-Version](https://img.shields.io/badge/GitHub-1.3.0-blue.svg)](https://github.com/s3rdia/qol)
+Version](https://img.shields.io/badge/GitHub-1.3.1-blue.svg)](https://github.com/s3rdia/qol)
 [![CRAN
 checks](https://badges.cranchecks.info/summary/qol.svg)](https://cran.r-project.org/web/checks/check_results_qol.html)
 [![Ask
@@ -443,6 +443,11 @@ do_if_df <- my_data |>
 The functions in this package actually talk to the user and show what
 they are doing during runtime. The message system relies on pure base R
 and does not only provide built in message types, but also custom ones.
+
+The standalone, lightweight and zero dependency version of this message
+system is also available with the package
+[printify](https://github.com/s3rdia/printify) and can be downloaded via
+[CRAN](https://CRAN.R-project.org/package=printify).
 
 <img src='man/figures/messages.png' alt='Messages'/>
 

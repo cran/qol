@@ -29,7 +29,7 @@
 #'
 #' Filter Data Frame: [where.()]
 #'
-#' Create new Variables: [compute()]
+#' Create new Variables: [compute.()]
 #'
 #' @examples
 #' # Example data frame
@@ -139,6 +139,14 @@ if. <- function(data_frame, condition, ...){
 
     assignments <- as.list(substitute(list(...)))[-1]
 
+    # Check for "delete" keyword
+    flag_delete <- FALSE
+
+    if (length(assignments) == 1 && assignments[[1]] == "delete"){
+        flag_delete      <- TRUE
+        assignments[[1]] <- NULL
+    }
+
     # The condition and the variable assignments are torn apart here, so that
     # only the unique variable and vector names are captured as characters.
     used_variables <- unique(c(all.vars(condition), # Get all variables from the condition
@@ -168,7 +176,7 @@ if. <- function(data_frame, condition, ...){
 
             # If no vector was passed in the condition or the assignments, then evaluate
             # as normal.
-            if (!variable %in% names(content_list)){
+            if (!any(used_variables %in% names(content_list))){
                 condition <- translate_condition(condition)
                 condition <- eval(condition, envir = data_frame, enclos = parent_env)
 
@@ -233,6 +241,12 @@ if. <- function(data_frame, condition, ...){
         # If no vector was passed in the condition, then evaluate as normal
         if (length(content_list) == 0){
             condition <- translate_condition(condition)
+
+            # If observations should be deleted, reverse condition before evaluation
+            if (flag_delete){
+                condition <- call("!", condition)
+            }
+
             condition <- eval(condition, envir = data_frame, enclos = parent_env)
 
             # Remember rows to tell the user how many rows have been removed
@@ -361,7 +375,7 @@ if. <- function(data_frame, condition, ...){
 
     # Evaluate calculations conditionally. Making use of hidden parameters.
     if (!flag_filter){
-        data_frame <- data_frame |> compute(..., .if_condition   = condition_list,
+        data_frame <- data_frame |> compute.(..., .if_condition   = condition_list,
                                                  .if_parent_frame = parent_env,
                                                  .if_suppressed   = TRUE)
     }
@@ -422,7 +436,7 @@ else_if. <- function(data_frame, condition, ...){
 
             # If no vector was passed in the condition or the assignments, then evaluate
             # as normal.
-            if (!variable %in% names(content_list)){
+            if (!any(used_variables %in% names(content_list))){
                 condition <- translate_condition(condition)
                 condition <- eval(condition, envir = data_frame, enclos = parent_env)
 
@@ -508,7 +522,7 @@ else_if. <- function(data_frame, condition, ...){
         }
 
         # Evaluate calculations conditionally. Making use of hidden parameters.
-        data_frame <- data_frame |> compute(..., .if_condition    = condition_list,
+        data_frame <- data_frame |> compute.(..., .if_condition    = condition_list,
                                                  .if_parent_frame = parent_env,
                                                  .if_suppressed   = TRUE)
     }
@@ -561,7 +575,7 @@ else. <- function(data_frame, ...){
 
             # If no vector was passed in the condition or the assignments, then evaluate
             # as normal.
-            if (!variable %in% names(content_list)){
+            if (!any(used_variables %in% names(content_list))){
                 # This step is important to make this function work in a nested situation.
                 # Normally variable would be the name of what was last passed as a parameter.
                 # If "if.()" is used nested inside a function this can basically be any placeholder.
@@ -639,7 +653,7 @@ else. <- function(data_frame, ...){
     }
 
     # Evaluate calculations conditionally. Making use of hidden parameters.
-    data_frame <- data_frame |> compute(..., .if_condition    = condition_list,
+    data_frame <- data_frame |> compute.(..., .if_condition    = condition_list,
                                              .if_parent_frame = parent_env,
                                              .if_suppressed   = TRUE)
 
@@ -664,6 +678,21 @@ else. <- function(data_frame, ...){
 translate_condition <- function(condition){
     if (is.call(condition)){
         operator <- condition[[1]]
+
+        # Replace doubled logical operators
+        if (identical(operator, as.name("&&"))){
+            print_message("WARNING", "Replaced '&&' with '&' for vectorized evaluation.")
+
+            condition[[1]] <- as.name("&")
+            operator       <- condition[[1]]
+        }
+
+        if (identical(operator, as.name("||"))){
+            print_message("WARNING", "Replaced '||' with '|' for vectorized evaluation.")
+
+            condition[[1]] <- as.name("|")
+            operator       <- condition[[1]]
+        }
 
         # Only check the expression, if its an equality check
         if (identical(operator, as.name("==")) || identical(operator, as.name("!="))){
@@ -788,7 +817,7 @@ combined_condition <- function(data_frame, condition){
 #'
 #' Filter Data Frame: [where.()]
 #'
-#' Create new Variables: [compute()]
+#' Create new Variables: [compute.()]
 #'
 #' @examples
 #' # Example data frame
@@ -848,7 +877,7 @@ where. <- function(data_frame,
 #'
 #' @description
 #' Creates a filter variable based on the given condition. This variable can be
-#' accessed by [if.()], [else_if.()], [else.()], [where.()] and [compute()], enabling these
+#' accessed by [if.()], [else_if.()], [else.()], [where.()] and [compute.()], enabling these
 #' functions to work with an overarching condition. This function can also be
 #' used to nest multiple overarching conditions.
 #'
@@ -864,7 +893,7 @@ where. <- function(data_frame,
 #'
 #' Filter Data Frame: [where.()]
 #'
-#' Create new Variables: [compute()]
+#' Create new Variables: [compute.()]
 #'
 #' @examples
 #' # Example data frame
@@ -941,7 +970,7 @@ else_do <- function(data_frame){
     filter_variables <- grep("^\\.do_if_select", names(data_frame), value = TRUE)
 
     if (length(filter_variables) == 0){
-        print_message("WARNING", "No active filter variable found. else_do() will be ignored.")
+        print_message("ERROR", "No active filter variable found. else_do() will be ignored.")
         return(invisible(data_frame))
     }
 
@@ -964,7 +993,7 @@ end_do <- function(data_frame){
     filter_variables <- grep("^\\.do_if_select", names(data_frame), value = TRUE)
 
     if (length(filter_variables) == 0){
-        print_message("WARNING", "No active filter variable found. end_do() will be ignored.")
+        print_message("ERROR", "No active filter variable found. end_do() will be ignored.")
         return(invisible(data_frame))
     }
 
@@ -986,7 +1015,7 @@ end_all_do <- function(data_frame){
     filter_variables <- grep("^\\.do_if_select", names(data_frame), value = TRUE)
 
     if (length(filter_variables) == 0){
-        print_message("WARNING", "No active filter variable found. end_all_do() will be ignored.")
+        print_message("ERROR", "No active filter variable found. end_all_do() will be ignored.")
         return(invisible(data_frame))
     }
 

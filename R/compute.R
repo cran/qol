@@ -13,7 +13,7 @@
 #' functions time consumption.
 #'
 #' @details
-#' The loop you can use within [compute()] is based on the 'SAS' do-over-loop. This
+#' The loop you can use within [compute.()] is based on the 'SAS' do-over-loop. This
 #' type of loop iterates over every vector that appears in the loop in parallel.
 #' Means that in the first iteration all the first vector elements are used, in the
 #' second iteration all second elements of every vector, and so on. With this loop
@@ -29,42 +29,42 @@
 #'
 #' Filter Data Frame: [where.()]
 #'
-#' Create new Variables: [compute()]
+#' Create new Variables: [compute.()]
 #'
 #' @examples
 #' # Example data frame
 #' my_data <- dummy_data(1000)
 #'
 #' # Simple assignment
-#' assign_df <- my_data |> compute(new_var1 = 1,
+#' assign_df <- my_data |> compute.(new_var1 = 1,
 #'                                 new_var2 = "Hello")
 #'
 #' # Simple calculation
-#' sum_df <- my_data |> compute(new_sum = age + sex)
+#' sum_df <- my_data |> compute.(new_sum = age + sex)
 #'
 #' # Using functions
-#' mean_df <- my_data |> compute(new_mean = collapse::fmean(age))
+#' mean_df <- my_data |> compute.(new_mean = collapse::fmean(age))
 #'
 #' # Using qol functions
-#' qol_df <- my_data |> compute(row_sum = row_calculation("sum", state, age, sex))
+#' qol_df <- my_data |> compute.(row_sum = row_calculation("sum", state, age, sex))
 #'
-#' # Use compute() as a do-over-loop. In this kind of loop all vectors will be
+#' # Use compute.() as a do-over-loop. In this kind of loop all vectors will be
 #' # advanced one iteration at a time in parallel.
 #' new_vars <- c("var1", "var2", "var3")
 #' money    <- c("income", "expenses", "balance")
 #' multi    <- c(1, 2, 3)
 #'
-#' do_over_df <- my_data |> compute(new_vars = money * multi)
+#' do_over_df <- my_data |> compute.(new_vars = money * multi)
 #'
 #' # You can also do all at once
-#' all_df <- my_data |> compute(new_var1 = 1,
+#' all_df <- my_data |> compute.(new_var1 = 1,
 #'                              new_var2 = "Hello",
 #'                              new_sum  = age + sex,
 #'                              new_mean = mean(age),
 #'                              row_sum  = row_calculation("sum", state, age, sex),
 #'                              new_vars = multi * money)
 #'
-#' # compute() can be used in a do_if() situation and is aware of overarching
+#' # compute.() can be used in a do_if() situation and is aware of overarching
 #' # conditions.
 #' age_west. <- discrete_format("under 18"     = 0:17,
 #'                              "18 and older" = 18:100)
@@ -74,17 +74,17 @@
 #'
 #' do_if_df <- my_data |>
 #'     do_if(state < 11) |>
-#'           compute(region    = "West",
-#'                   age_group = recode(age = age_west.)) |>
+#'         compute.(region    = "West",
+#'                  age_group = recode.(age = age_west.)) |>
 #'     else_do() |>
-#'           compute(region    = "East",
-#'                   age_group = recode(age = age_east.)) |>
+#'         compute.(region    = "East",
+#'                  age_group = recode.(age = age_east.)) |>
 #'     end_do()
 #'
 #' @export
-compute <- function(data_frame,
-                    ...,
-                    monitor = .qol_options[["monitor"]]){
+compute. <- function(data_frame,
+                     ...,
+                     monitor = .qol_options[["monitor"]]){
     # Measure the time
     print_start_message()
 
@@ -156,7 +156,7 @@ compute <- function(data_frame,
         calc_text   <- deparse(calculation)
 
         # If no vector was passed then evaluate as normal.
-        if (!variable %in% names(content_list)){
+        if (!any(used_variables %in% names(content_list))){
             #-------------------------------------------------------------------------#
             monitor_df <- monitor_df |> monitor_next(paste0(variable, " = ", calc_text), "Non vector")
             #-------------------------------------------------------------------------#
@@ -180,7 +180,20 @@ compute <- function(data_frame,
 
                 # Check if existing variable type is of same type as assigned value.
                 # Put out a warning on type mismatch.
-                if (check_types(data_frame, original_var, value)){
+                is_type_missmatch <- check_types(data_frame, original_var, value)
+
+                # If result is NULL, then there is a variable with all NA values
+                # which has to be converted into the right type.
+                if (is.null(is_type_missmatch)){
+                    if (is.character(value)){
+                        data_frame[[variable]] <- NA_character_
+                    }
+                    else if (is.numeric(value)){
+                        data_frame[[variable]] <- NA_real_
+                    }
+                }
+                # Convert to character on type miss match
+                else if (is_type_missmatch){
                     data_frame[[original_var]] <- as.character(data_frame[[original_var]])
                     value <- as.character(value)
                 }
@@ -304,7 +317,20 @@ compute <- function(data_frame,
 
                     # Check if existing variable type is of same type as assigned value.
                     # Put out a warning on type mismatch.
-                    if (check_types(data_frame, target_variable, value)){
+                    is_type_missmatch <- check_types(data_frame, target_variable, value)
+
+                    # If result is NULL, then there is a variable with all NA values
+                    # which has to be converted into the right type.
+                    if (is.null(is_type_missmatch)){
+                        if (is.character(value)){
+                            data_frame[[variable]] <- NA_character_
+                        }
+                        else if (is.numeric(value)){
+                            data_frame[[variable]] <- NA_real_
+                        }
+                    }
+                    # Convert to character on type miss match
+                    else if (is_type_missmatch){
                         data_frame[[target_variable]] <- as.character(data_frame[[target_variable]])
                         value <- as.character(value)
                     }
@@ -372,6 +398,27 @@ compute <- function(data_frame,
     print_step("MAJOR", "Add variables to data frame")
 
     if (length(call_list) > 0){
+        # If there are any duplicate names in list, the call_list has to be cleaned
+        # up first.
+        if (length(call_list) > 1 && any(duplicated(names(call_list)))){
+            # Group up duplicate list names in their own list
+            call_list <- split(call_list, names(call_list))
+
+            # Lists with duplicate variable names will be merged together, because
+            # it is actually one variable with different expressions. Probably
+            # generated within a do-over-loop. fcoalesce takes the first value
+            # per line which is not NA, so first value beats other values, if there
+            # are any.
+            call_list <- lapply(call_list, function(element){
+                if (length(element) > 1) {
+                    data.table::fcoalesce(element)
+                }
+                else{
+                    element[[1]]
+                }
+            })
+        }
+
         data_frame <- collapse::ftransform(data_frame, call_list)
     }
 
@@ -451,7 +498,7 @@ get_custom_functions <- function(expression, env){
 check_types <- function(data_frame, variable, current){
     # Abort if all values are NA
     if (all(is.na(data_frame[[variable]]))){
-        return(FALSE)
+        return(NULL)
     }
 
     type_c <- typeof(current)
