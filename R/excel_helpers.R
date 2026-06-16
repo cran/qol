@@ -287,7 +287,7 @@ handle_col_header_merge <- function(wb, column_header, ranges, style){
                                   values  = ranges[["block_values"]])
     }
     # No merging, every statistic is written over every column. This is identical
-    # behaviour in comparison to SAS.
+    # behavior in comparison to SAS.
     else if (style[["header_stat_merging"]] == "none"){
         row <- length(row_values)
         row_values[[row]] <- list(lengths = rep(1, collapse::fncol(column_header)),
@@ -300,6 +300,7 @@ handle_col_header_merge <- function(wb, column_header, ranges, style){
 
     # Loop through all rows
     number_of_rows <- length(row_values)
+    merge_dims     <- character()
 
     for (row in seq_along(row_values)){
         current_row <- row_values[[row]]
@@ -342,15 +343,19 @@ handle_col_header_merge <- function(wb, column_header, ranges, style){
                     next
                 }
 
-                wb$merge_cells(dims = get_excel_range(from_row    = row_offset + from_row,
-                                                      from_column = col_offset + from_col,
-                                                      to_row      = row_offset + to_row,
-                                                      to_column   = col_offset + to_col))
+                # Collect all the dims that need to be merged in a vector
+                merge_dims <- c(merge_dims, get_excel_range(from_row    = row_offset + from_row,
+                                                            from_column = col_offset + from_col,
+                                                            to_row      = row_offset + to_row,
+                                                            to_column   = col_offset + to_col))
             }
 
             start_col <- start_col + max(1, space)
         }
     }
+
+    # Merge all dims in one go
+    wb$merge_cells(dims = merge_dims)
 
     wb
 }
@@ -387,6 +392,7 @@ handle_row_header_merge <- function(wb, row_header, ranges){
 
     # Loop through all columns
     number_of_columns <- length(col_values)
+    merge_dims <- character()
 
     for (column in seq_along(col_values)){
         current_col <- col_values[[column]]
@@ -429,15 +435,19 @@ handle_row_header_merge <- function(wb, row_header, ranges){
                     next
                 }
 
-                wb$merge_cells(dims = get_excel_range(from_row    = row_offset + from_row,
-                                                      from_column = col_offset + from_col,
-                                                      to_row      = row_offset + to_row,
-                                                      to_column   = col_offset + to_col))
+                # Collect all the dims that need to be merged in a vector
+                merge_dims <- c(merge_dims, get_excel_range(from_row    = row_offset + from_row,
+                                                            from_column = col_offset + from_col,
+                                                            to_row      = row_offset + to_row,
+                                                            to_column   = col_offset + to_col))
             }
 
             start_row <- start_row + space
         }
     }
+
+    # Merge all dims in one go
+    wb$merge_cells(dims = merge_dims)
 
     wb
 }
@@ -1562,7 +1572,7 @@ handle_header_table_dim <- function(wb,
 #' @param number_to_format Needed length to be adjusted.
 #'
 #' @return
-#' Returns a an adjusted format vector.
+#' Returns an adjusted format vector.
 #'
 #' @noRd
 fill_or_trim <- function(format_vector,
@@ -1581,6 +1591,36 @@ fill_or_trim <- function(format_vector,
     }
 
     format_vector
+}
+
+
+#' Split Up 'Excel' Ranges
+#'
+#' @description
+#' Split up a range into individual column ranges.
+#'
+#' @param range Range to be split up.
+#'
+#' @return
+#' Returns vector of column ranges.
+#'
+#' @noRd
+split_up_ranges <- function(range){
+    # Extract the row numbers from range
+    rows <- unlist(regmatches(range, gregexpr("[0-9]+", range)))
+
+    start_row <- rows[1]
+    end_row   <- rows[2]
+
+    # Extract the column letters from range
+    columns <- unlist(regmatches(range, gregexpr("[A-Z]+", range)))
+
+    # Build a sequence of letters for the provided range
+    column_numbers  <- openxlsx2::col2int(paste(columns[1], columns[2], sep = ":"))
+    column_sequence <- openxlsx2::int2col(column_numbers)
+
+    # Combine everything back together to individual columns
+    paste0(column_sequence, start_row, ":", column_sequence, end_row)
 }
 
 ###############################################################################
@@ -1620,6 +1660,8 @@ fill_or_trim <- function(format_vector,
 #' @param grid_lines Whether to show grid lines or not.
 #' @param by_as_subheaders Whether to format by variables as subheaders in one table instead
 #' of single tables on multiple sheets.
+#' @param background_color Background cell color for any cell which isn't covered by the other
+#' background color options.
 #' @param header_back_color Background cell color of the table header.
 #' @param header_font_color Font color of the table header.
 #' @param header_font_size Font size of the table header.
@@ -1701,7 +1743,7 @@ fill_or_trim <- function(format_vector,
 #' Creating a custom table style: [modify_output_style()],
 #' [number_format_style()], [modify_number_formats()].
 #'
-#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#' Global style options: [set_style_options()], [set_labels()].
 #'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()],
 #' [export_with_style()]
@@ -1736,6 +1778,7 @@ excel_output_style <- function(save_path              = NULL,
                                filters                = TRUE,
                                grid_lines             = TRUE,
                                by_as_subheaders       = FALSE,
+                               background_color       = "",
                                header_back_color      = "FFFFFF",
                                header_font_color      = "000000",
                                header_font_size       = 10,
@@ -1767,7 +1810,7 @@ excel_output_style <- function(save_path              = NULL,
                                table_back_color       = "FFFFFF",
                                table_font_color       = "000000",
                                table_font_size        = 10,
-                               table_font_bold       = FALSE,
+                               table_font_bold        = FALSE,
                                table_alignment        = "right",
                                table_indent           = 1,
                                table_borders          = FALSE,
@@ -1828,7 +1871,7 @@ excel_output_style <- function(save_path              = NULL,
 #' Creating a custom table style: [excel_output_style()],
 #' [number_format_style()], [modify_number_formats()].
 #'
-#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#' Global style options: [set_style_options()], [set_labels()].
 #'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()],
 #' [export_with_style()]
@@ -1925,7 +1968,7 @@ modify_output_style <- function(style_to_modify, ...){
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [modify_number_formats()].
 #'
-#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#' Global style options: [set_style_options()], [set_labels()].
 #'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()],
 #' [export_with_style()]
@@ -2009,7 +2052,7 @@ number_format_style <- function(pct_excel         = "0.0",
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [number_format_style()].
 #'
-#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#' Global style options: [set_style_options()], [set_labels()].
 #'
 #' Functions that can handle styles: [frequencies()], [crosstabs()], [any_table()],
 #' [export_with_style()].

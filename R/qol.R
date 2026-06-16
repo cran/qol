@@ -48,7 +48,7 @@
 #'
 #' Renaming: [rename_pattern()], [add_extension()], [remove_stat_extension()], [replace_except()]
 #'
-#' Retaining: [running_number()], [mark_case()], [retain_value()], [retain_sum()], [retain_variables()]
+#' Retaining: [running_number()], [mark_case()], [retain_value()], [retain_stat()], [retain_variables()]
 #'
 #' Character Manipulation: [concat()], [sub_string()], [remove_blanks()]
 #'
@@ -61,7 +61,7 @@
 #'
 #' Saving And Loading: [libname()], [set()], [save_file()], [save_file_multi()], [load_file()], [load_file_multi()]
 #'
-#'Reporting: [content_report()], [report_test_results()], [test_package()], [test_single_file()]
+#' Reporting: [content_report()], [code_statistics()], [report_test_results()], [test_package()], [test_single_file()]
 #'
 #' Messages: [print_message()], [print_headline()], [print_start_message()], [print_closing()], [print_step()],
 #' [set_up_custom_message()], [get_message_stack()], [set_no_print()], [print_stack_as_messages()], [convert_square_brackets()]
@@ -75,11 +75,11 @@
 #'
 #' Error handling: [resolve_intersection()], [part_of_df()], [remove_doubled_values()], [check_weight()]
 #'
-#' Global options: [set_style_options()], [reset_style_options()], [get_style_options()], [close_file()],
-#' [set_variable_labels()], [get_variable_labels()], [set_stat_labels()], [get_stat_labels()],
-#' [set_print()], [get_print()], [set_monitor()], [get_monitor()], [set_na.rm()], [get_na.rm()],
-#' [set_output()], [get_output()], [set_titles()], [get_titles()], [set_footnotes()], [get_footnotes()],
-#' [set_print_miss()], [get_print_miss()], [set_threads()], [get_threads()]
+#' Global options: [set_style_options()], [get_style_options()], [reset_style_options()], [close_file()],
+#' [set_labels()], [get_labels()], [set_print()], [get_print()], [set_monitor()],
+#' [get_monitor()], [set_na.rm()], [get_na.rm()], [set_output()], [get_output()], [set_titles()],
+#' [get_titles()], [set_footnotes()], [get_footnotes()], [set_print_miss()], [get_print_miss()],
+#' [set_threads()], [get_threads()]
 #'
 #' Other: [build_master()], [build_rstheme()], [free_memory()], [qol_news()], [qol_chat()]
 #'

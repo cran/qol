@@ -59,8 +59,7 @@ dummy_data <- function(no_obs    = 25000,
     dummy_temp <- data.table::data.table(
         household_id = rep(1:number_of_households, times = persons_per_household))
 
-    dummy_temp[["person_id"]]         <- sequence(persons_per_household)
-    dummy_temp[["number_of_persons"]] <- as.integer(rep(persons_per_household, times = persons_per_household))
+    dummy_temp[["person_id"]] <- sequence(persons_per_household)
 
     # Randomly generate sixteen states
     dummy_temp[["state"]] <- as.integer(rep(sample(1:16, number_of_households,
@@ -313,6 +312,8 @@ dummy_data <- function(no_obs    = 25000,
                                  verbose  = FALSE,
 								 overid   = 2)
 
+    print_step("MAJOR", "Readjust variables")
+
     # Reduce observations to desired number of observations
     random_sample <- sort(sample.int(collapse::fnrow(dummy_temp), orig_obs))
     dummy_temp    <- dummy_temp |> collapse::fsubset(random_sample)
@@ -321,6 +322,10 @@ dummy_data <- function(no_obs    = 25000,
     renumber                     <- data.table::rleid(dummy_temp[["household_id"]])
     dummy_temp[["person_id"]]    <- sequence(tabulate(renumber))
     dummy_temp[["first_person"]] <- data.table::fifelse(dummy_temp[["person_id"]] == 1, 1, 0)
+
+    # Get the number of persons per household
+    grp <- collapse::GRP(dummy_temp, c("year", "state", "household_id"), sort = FALSE)
+    dummy_temp[["number_of_persons"]] <- collapse::fmax(dummy_temp[["person_id"]], g = grp, TRA = "fill")
 
     #-------------------------------------------------------------------------#
     monitor_df <- monitor_df |> monitor_next("Advance values")

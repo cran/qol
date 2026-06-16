@@ -28,6 +28,16 @@ expect_true("income_new" %in% names(test_df), info = "if. can handle vectors")
 expect_equal(test_df[["income_new"]], test_df[["income"]], info = "if. can handle vectors")
 
 
+# if. doesn't overwrite existing values with NA
+test_df           <- dummy_df
+test_df[["var1"]] <- ifelse(test_df[["first_person"]] == 1, NA, 1)
+test_df[["var2"]] <- 1
+test_df           <- test_df |> if.(var1 == 1, var2 = 2)
+
+expect_true(all(collapse::funique(test_df[["var2"]]) %in% c(1, 2)), info = "if. doesn't overwrite existing values with NA")
+expect_true(!anyNA(test_df[["var2"]]), info = "if. doesn't overwrite existing values with NA")
+
+
 # else_if. doesn't work without if.
 test_df <- dummy_df |>
     else_if.(age >= 18 & age < 65, age_group = "18 to under 65") |>
@@ -168,6 +178,19 @@ expect_true(all(collapse::funique(do_over_df[["VAR1"]]) %in% c(1, 3, 4)), info =
 expect_true(all(collapse::funique(do_over_df[["VAR2"]]) %in% c(2, 3, 4)), info = "if. as do over loop")
 
 
+# if. as do over loop doesn't overwrite existing values with NA
+vars   <- c("var2", "var2")
+values <- c(2, 3)
+
+test_df           <- dummy_df
+test_df[["var1"]] <- ifelse(test_df[["first_person"]] == 1, NA, 1)
+test_df[["var2"]] <- 1
+test_df           <- test_df |> if.(var1 == 1, vars = values)
+
+expect_true(all(collapse::funique(test_df[["var2"]]) %in% c(1, 3)), info = "if. as do over loop doesn't overwrite existing values with NA")
+expect_true(!anyNA(test_df[["var2"]]), info = "if. as do over loop doesn't overwrite existing values with NA")
+
+
 # if. as do over loop can handle different values in the same variable
 dummy_df <- dummy_data(1000)
 class_df <- dummy_df |>
@@ -228,18 +251,18 @@ result_df <- dummy_df |> if.(state < 11, sum       = state + age,
                                          var1      = 1,
                                          var2      = "Hello",
                                          variables = values) |>
-                       else_if.(state == 11, sum       = state + age,
-                                             col_sum   = collapse::fsum(age),
-                                             row_sum   = row_calculation("sum", state, age),
-                                             var1      = 1,
-                                             var2      = "Hello",
-                                             variables = values) |>
-                                     else.(sum       = state + age,
-                                           col_sum   = collapse::fsum(age),
-                                           row_sum   = row_calculation("sum", state, age),
-                                           var1      = 1,
-                                           var2      = "Hello",
-                                           variables = values)
+                   else_if.(state == 11, sum       = state + age,
+                                         col_sum   = collapse::fsum(age),
+                                         row_sum   = row_calculation("sum", state, age),
+                                         var1      = 1,
+                                         var2      = "Hello",
+                                         variables = values) |>
+                                   else.(sum       = state + age,
+                                         col_sum   = collapse::fsum(age),
+                                         row_sum   = row_calculation("sum", state, age),
+                                         var1      = 1,
+                                         var2      = "Hello",
+                                         variables = values)
 
 expect_true(all(c("sum", "col_sum", "row_sum", "var1", "var2", "NEW_VAR1", "NEW_VAR2") %in% names(result_df)), info = "if. can do all kinds of calculations")
 
@@ -250,46 +273,55 @@ expect_true(all(c("sum", "col_sum", "row_sum", "var1", "var2", "NEW_VAR1", "NEW_
 # Subset data frame with if.
 test_df <- dummy_df |> if.(sex == 1)
 
-expect_true(nrow(test_df) < nrow(dummy_df), info = "Subset data frame with if.")
+expect_true(collapse::fnrow(test_df) < collapse::fnrow(dummy_df), info = "Subset data frame with if.")
 expect_true(!2 %in% test_df[["sex"]], info = "Subset data frame with if.")
 
 
 # Subset data frame with if. (unequal)
 test_df <- dummy_df |> if.(sex != 1)
 
-expect_true(nrow(test_df) < nrow(dummy_df), info = "Subset data frame with if. (unequal)")
+expect_true(collapse::fnrow(test_df) < collapse::fnrow(dummy_df), info = "Subset data frame with if. (unequal)")
 expect_true(!1 %in% test_df[["sex"]], info = "Subset data frame with if. (unequal)")
 
 
 # Subset data frame with if., when only providing single variable
 test_df <- dummy_df |> if.(sex)
 
-expect_true(nrow(test_df) < nrow(dummy_df), info = "Subset data frame with if., when only providing single variable")
+expect_true(collapse::fnrow(test_df) < collapse::fnrow(dummy_df), info = "Subset data frame with if., when only providing single variable")
 expect_true(!NA %in% test_df[["sex"]], info = "Subset data frame with if., when only providing single variable")
 
 
 # Subset data frame with if., when only providing single variable as character
 test_df <- dummy_df |> if.("sex")
 
-expect_true(nrow(test_df) < nrow(dummy_df), info = "Subset data frame with if., when only providing single variable as character")
+expect_true(collapse::fnrow(test_df) < collapse::fnrow(dummy_df), info = "Subset data frame with if., when only providing single variable as character")
 expect_true(!NA %in% test_df[["sex"]], info = "Subset data frame with if., when only providing single variable as character")
 
 
 # Delete observations with 'delete' keyword
 test_df <- dummy_df |> if.(sex == 1, delete)
 
-expect_true(nrow(test_df) < nrow(dummy_df), info = "Delete observations with 'delete' keyword")
+expect_true(collapse::fnrow(test_df) < collapse::fnrow(dummy_df), info = "Delete observations with 'delete' keyword")
 expect_true(!1 %in% test_df[["sex"]], info = "Delete observations with 'delete' keyword")
 
 
 # if. as do over loop for subsetting
-vars   <- c("income", "balance")
-values <- c(1000, 0)
+vars    <- c("income", "balance")
+values1 <- c(1000, 0)
+values2 <- c("low", "high")
+values3 <- FALSE
 
-do_over_df <- dummy_df |> if.(vars > values)
+test_df <- dummy_df
+test_df[["logical"]] <- TRUE
 
-expect_true(collapse::fmin(do_over_df[["income"]])  > 1000, info = "if. as do over loop for subsetting")
-expect_true(collapse::fmin(do_over_df[["balance"]]) > 0,    info = "if. as do over loop for subsetting")
+do_over_df1 <- dummy_df |> if.(vars > values1)
+do_over_df2 <- dummy_df |> if.(education != values2)
+do_over_df3 <- test_df  |> if.(logical == values3)
+
+expect_true(collapse::fmin(do_over_df1[["income"]])  > 1000, info = "if. as do over loop for subsetting")
+expect_true(collapse::fmin(do_over_df1[["balance"]]) > 0,    info = "if. as do over loop for subsetting")
+expect_true(collapse::funique(do_over_df2[["education"]]) == "middle", info = "if. as do over loop for subsetting")
+expect_true(collapse::fnrow(do_over_df3) == 0, info = "if. as do over loop for subsetting")
 
 # Warning on doubled logical operators
 test_df <- dummy_df |> if.((sex == 1 && education == "high") || sex == 2)

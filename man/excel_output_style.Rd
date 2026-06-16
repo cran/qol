@@ -23,6 +23,7 @@ excel_output_style(
   filters = TRUE,
   grid_lines = TRUE,
   by_as_subheaders = FALSE,
+  background_color = "",
   header_back_color = "FFFFFF",
   header_font_color = "000000",
   header_font_size = 10,
@@ -130,6 +131,9 @@ while scrolling sideways in the document.}
 
 \item{by_as_subheaders}{Whether to format by variables as subheaders in one table instead
 of single tables on multiple sheets.}
+
+\item{background_color}{Background cell color for any cell which isn't covered by the other
+background color options.}
 
 \item{header_back_color}{Background cell color of the table header.}
 
@@ -286,7 +290,7 @@ excel_style <- excel_output_style(table_back_color = "")
 Creating a custom table style: \code{\link[=modify_output_style]{modify_output_style()}},
 \code{\link[=number_format_style]{number_format_style()}}, \code{\link[=modify_number_formats]{modify_number_formats()}}.
 
-Global style options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=set_variable_labels]{set_variable_labels()}}, \code{\link[=set_stat_labels]{set_stat_labels()}}.
+Global style options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=set_labels]{set_labels()}}.
 
 Functions that can handle styles: \code{\link[=frequencies]{frequencies()}}, \code{\link[=crosstabs]{crosstabs()}}, \code{\link[=any_table]{any_table()}},
 \code{\link[=export_with_style]{export_with_style()}}

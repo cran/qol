@@ -178,11 +178,12 @@ result_list <- dummy_df |>
                 pct_group  = c("age", "sex"),
                 pct_value  = list(rate = "probability / weight",
                                   sex  = 1),
-                output  = "excel_nostyle",
+                output     = "excel_nostyle",
                 print      = FALSE)
 
 expect_true(all(c("weight_pct_group_age_1", "weight_pct_total_1",
-                  "rate_pct_value_1", "sex_pct_value_1") %in% names(result_list[["table"]])), info = "any_table with different percentages")
+                  "rate_pct_value_1", "sex_pct_value_1") %in% names(result_list[["table"]])),
+            info = "any_table with different percentages")
 
 
 # any_table with keywords for row and column percentages
@@ -563,7 +564,8 @@ result_list <- dummy_df |>
                   columns = "sex",
                   values  = weight,
                   style   = excel_output_style(freeze_col_header = TRUE,
-                                               freeze_row_header = TRUE),
+                                               freeze_row_header = TRUE,
+                                               background_color  = "FF00FF"),
                   na.rm   = TRUE,
                   output  = "excel_nostyle",
                   print   = FALSE)

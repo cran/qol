@@ -49,7 +49,7 @@
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [number_format_style()], [modify_number_formats()].
 #'
-#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#' Global style options: [set_style_options()], [set_labels()].
 #'
 #' Other global options: [set_titles()], [set_footnotes()], [set_print()], [set_monitor()],
 #' [set_na.rm()], [set_print()], [set_print_miss()], [set_output()].
@@ -324,8 +324,7 @@ frequencies <- function(data_frame,
         for (variable in vars_mean){
             # Extract all stats for a single variable and give them uniform names
             var_columns <- grep(variable, names(mean_tab), value = TRUE)
-            var_row <- suppressMessages(mean_tab |>
-                keep("TYPE", "by_vars", var_columns))
+            var_row <- suppressMessages(mean_tab |> keep("TYPE", "by_vars", var_columns))
 
             if (length(by) == 0){
                 names(var_row) <- mean_columns
@@ -414,14 +413,15 @@ frequencies <- function(data_frame,
         if (length(by) == 0){
             complete_mean  <- format_mean_text(mean_tab, vars_mean, mean_columns, means)
             complete_freq  <- format_freq_text(freq_tab, variables, formats,
-                                               by, titles, footnotes)
+                                               by, titles, footnotes, style)
 
             complete_table <- c(complete_mean, complete_freq)
         }
         # In case there are  by variables are provided
         else{
             complete_table <- format_by_text(mean_tab, freq_tab, variables, mean_columns,
-                                             formats, by, titles, footnotes, na.rm, means)
+                                             formats, by, titles, footnotes, na.rm, means,
+                                             style)
         }
     }
     else if (output == "excel" || output == "excel_nostyle"){
@@ -920,7 +920,8 @@ format_freq_text <- function(freq_tab,
                              formats,
                              by,
                              titles,
-                             footnotes){
+                             footnotes,
+                             style){
     complete_tabs <- c()
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1016,7 +1017,7 @@ format_freq_text <- function(freq_tab,
                 formatted_cols[[column]] <- format_number(var_tab[column + 1],
                                                           width    = column_widths[column],
                                                           stat     = names(var_tab[column + 1]),
-                                                          decimals = 3)
+                                                          decimals = style[["number_formats"]][["sum_decimals"]])
             }
             # Percentages and Unweighted freq
             else{
@@ -1387,7 +1388,8 @@ format_by_text <- function(mean_tab,
                            titles,
                            footnotes,
                            na.rm,
-                            means){
+                           means,
+                           style){
     # Print message if multilabels are applied
     for (variable in variables){
         if (is_multilabel(formats, variable)){
@@ -1474,7 +1476,8 @@ format_by_text <- function(mean_tab,
                                              formats,
                                              by,
                                              titles,
-                                             footnotes)
+                                             footnotes,
+                                             style)
 
             # Output formatted result
             complete_tabs <- c(complete_tabs, complete_header, current_mean, current_freq)

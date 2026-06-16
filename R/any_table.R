@@ -98,7 +98,7 @@
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [number_format_style()], [modify_number_formats()].
 #'
-#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#' Global style options: [set_style_options()], [set_labels()].
 #'
 #' Other global options: [set_titles()], [set_footnotes()], [set_print()], [set_monitor()],
 #' [set_na.rm()], [set_print()], [set_print_miss()], [set_output()].
@@ -741,12 +741,24 @@ any_table <- function(data_frame,
             statistics <- c(statistics, "pct_value")
         }
     }
+    else if(length(pct_value) == 0 && "pct_value" %in% tolower(statistics)){
+        print_message("NOTE", c("'pct_value' is specified in the statistics but the <pct_value> parameter",
+                                " isn't set. 'pct_value' will be removed from statistics."))
+
+        statistics <- statistics[!statistics %in% "pct_value"]
+    }
 
     # If pct_block parameter is passed but is not selected as statistic, add it
     if (length(pct_block) > 0 && !"pct_block" %in% tolower(statistics)){
         if (!(length(pct_block) == 1 && pct_block == "")){
             statistics <- c(statistics, "pct_block")
         }
+    }
+    else if(length(pct_block) == 0 && "pct_block" %in% tolower(statistics)){
+        print_message("NOTE", c("'pct_block' is specified in the statistics but the <pct_block> parameter",
+                                " isn't set. 'pct_block' will be removed from statistics."))
+
+        statistics <- statistics[!statistics %in% "pct_block"]
     }
 
     if (!pre_summed){
@@ -1189,7 +1201,7 @@ any_table <- function(data_frame,
         # This basically is the same approach as in the shortcut route of summarise_plus.
         current_values <- paste0(values, "_sum")
 
-        result_list <- data_frame |>
+        group_df <- data_frame |>
             matrix_summarise(values,
                              group_vars,
                              data_frame[[weight_var]],
@@ -1198,9 +1210,7 @@ any_table <- function(data_frame,
                              monitor_df,
                              FALSE)
 
-        group_df <- result_list[[1]] |>
-            collapse::fselect(-sum_wgt) |>
-            collapse::frename(stats::setNames(current_values, values))
+        group_df <- group_df[[1]] |> collapse::frename(stats::setNames(current_values, values))
 
         group_df[[".temp_weight"]] <- 1
 
@@ -1244,7 +1254,7 @@ any_table <- function(data_frame,
                                verbose = FALSE,
                                overid  = 2)
         }
-        rm(group, group_tab, group_df, result_list, current_values)
+        rm(group, group_tab, group_df, current_values)
     }
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2112,10 +2122,10 @@ format_any_excel <- function(wb,
     names(any_tab) <- gsub("pct_total",  "pct total",  names(any_tab))
     names(any_tab) <- gsub("pct_value",  "pct value",  names(any_tab))
     names(any_tab) <- gsub("pct_block_", "pct block ", names(any_tab))
+    names(any_tab) <- gsub("freq_g0",    "freq g0",    names(any_tab))
 
     # Replace underscore in the following stats to preserve them
     names(any_tab) <- gsub("sum_wgt", "weight_sum.wgt", names(any_tab))
-    names(any_tab) <- gsub("freq_g0", "freq.g0", names(any_tab))
 
     # Build header from variable names
     multi_header <- build_multi_header(names(any_tab), any_header, var_labels, style)
@@ -2166,7 +2176,6 @@ format_any_excel <- function(wb,
 
     # Rename the following stats back to match number formats in style element
     names(any_tab) <- gsub("sum.wgt", "sum_wgt", names(any_tab))
-    names(any_tab) <- gsub("freq.g0", "freq_g0", names(any_tab))
 
     #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # Add table data and format according to style options
@@ -2224,6 +2233,21 @@ format_any_excel <- function(wb,
         wb <- wb |>
             handle_row_header_merge(any_tab[, 1:any_ranges[["cat_col.width"]]], any_ranges)
 
+        # Fill all cells with background color
+        if (style[["background_color"]] != ""){
+            #-----------------------------------------------------------------#
+            monitor_df <- monitor_df |> monitor_next("Excel background", "Format")
+            #-----------------------------------------------------------------#
+            if (is.null(by_info)){ print_step("MINOR", "Fill background") }
+
+            wb$add_fill(color = openxlsx2::wb_color(style[["background_color"]]))
+            wb$set_cell_style_across(cols = "A:XFD", style = wb$get_cell_style(dims = "A1"))
+
+            # Titles and footnotes need to get an extra fill
+            wb$add_fill(dims = any_ranges[["title_range"]],    color = openxlsx2::wb_color(style[["background_color"]]))
+            wb$add_fill(dims = any_ranges[["footnote_range"]], color = openxlsx2::wb_color(style[["background_color"]]))
+        }
+
         # Style table
         #---------------------------------------------------------------------#
         monitor_df <- monitor_df |> monitor_next("Excel cell styles", "Format")
@@ -2247,10 +2271,10 @@ format_any_excel <- function(wb,
                             start_row  = any_ranges[["table.row"]] + (style[["subheader_rows"]][[sub_range]] - 1),
                             col_names  = FALSE,
                             na.strings = style[["na_symbol"]])
-
-                wb$merge_cells(dims = pre_subheader_range[[sub_range]])
-                wb$merge_cells(dims = subheader_range[[sub_range]])
             }
+
+            wb$merge_cells(dims = pre_subheader_range)
+            wb$merge_cells(dims = subheader_range)
         }
 
         #---------------------------------------------------------------------#
@@ -3056,7 +3080,8 @@ combine_into_workbook <- function(...,
         if (is.character(meta[[length(meta)]]) && meta[[length(meta)]] == "DATA"){
             wb_list <- suppressMessages(
                 format_df_excel(wb, table[["table"]], meta[["titles"]], meta[["footnotes"]],
-                                meta[["var_labels"]], meta[["style"]], meta[["output"]], monitor_df))
+                                meta[["var_labels"]], meta[["style"]], meta[["column_align"]],
+                                meta[["output"]], monitor_df))
 
             wb <- wb_list[[1]]
         }

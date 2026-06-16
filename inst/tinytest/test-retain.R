@@ -12,6 +12,10 @@ test_df <- data.frame(
     var_char = c("a", NA, NA, "b", NA),
     var_sum  = c(1, 1, 1, 1, 1))
 
+test_df2 <- data.frame(
+    var1 = c(1, 1, 2, 2, 2, 3, 3, 3),
+    var2 = c(3, 3, 2, 2, 2, 1, 1, 1))
+
 dummy_df <- dummy_data(10)
 
 
@@ -25,6 +29,18 @@ expect_equal(test_df[["run_nr"]], c(1, 2, 3, 4, 5), info = "Generate running num
 test_df[["run_nr"]] <- test_df |> running_number(by = var_by)
 
 expect_equal(test_df[["run_nr"]], c(1, 2, 1, 1, 2), info = "Generate running number with by")
+
+
+# Generate running number with by and sort
+test_df2[["run_nr"]] <- test_df2 |> running_number(by = c(var2, var1), sort = TRUE)
+
+expect_equal(test_df2[["run_nr"]], c(1, 2, 3, 1, 2, 3, 1, 2), info = "Generate running number with by and sort")
+
+
+# Generate running number with by and group
+test_df2[["run_nr"]] <- test_df2 |> running_number(by = c(var2, var1), sort = TRUE, group_nr = TRUE)
+
+expect_equal(test_df2[["run_nr"]], c(1, 1, 1, 2, 2, 2, 3, 3), info = "Generate running number with by and group")
 
 
 # Mark first and last cases without by
@@ -75,23 +91,23 @@ expect_equal(test_df[["var_char_first"]], c("a", "a", NA, "b", "b"), info = "Ret
 
 
 # Retain sum without by
-test_df[["retain_sum"]] <- test_df |>
-      retain_sum(values = var_sum)
+test_df[["retain_stat"]] <- test_df |>
+      retain_stat(values = var_sum)
 
-expect_equal(test_df[["retain_sum"]], c(5, 5, 5, 5, 5), info = "Retain sum without by")
+expect_equal(test_df[["retain_stat"]], c(5, 5, 5, 5, 5), info = "Retain sum without by")
 
 
 # Retain sum with by
-test_df[["retain_sum"]] <- test_df |>
-      retain_sum(values = var_sum, by = var_by)
+test_df[["retain_stat"]] <- test_df |>
+      retain_stat(values = var_sum, by = var_by)
 
-expect_equal(test_df[["retain_sum"]], c(2, 2, 1, 2, 2), info = "Retain sum with by")
+expect_equal(test_df[["retain_stat"]], c(2, 2, 1, 2, 2), info = "Retain sum with by")
 
 
 # Retain multiple sums
 test_df[, c("var_num_sum", "var_num2_sum")] <-
     test_df |>
-      retain_sum(values = c(var_num, var_num2),
+      retain_stat(values = c(var_num, var_num2),
                   by    = c(var_sum, var_by))
 
 expect_equal(test_df[["var_num_sum"]],  c(1, 1, NA, 2, 2), info = "Retain multiple sums")
@@ -207,7 +223,7 @@ expect_error(print_stack_as_messages("ERROR"), "Must provide <values> to retain.
 
 
 # Retain sum without providing sum_of
-dummy_df[["retain_sum"]] <- dummy_df |> retain_sum()
+dummy_df[["retain_stat"]] <- dummy_df |> retain_stat()
 
 expect_error(print_stack_as_messages("ERROR"), "Must provide a <values> to retain. Retain will be aborted.", info = "Retain sum without providing sum_of")
 

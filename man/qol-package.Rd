@@ -56,7 +56,7 @@ Monitoring: \code{\link[=monitor_start]{monitor_start()}}, \code{\link[=monitor_
 
 Renaming: \code{\link[=rename_pattern]{rename_pattern()}}, \code{\link[=add_extension]{add_extension()}}, \code{\link[=remove_stat_extension]{remove_stat_extension()}}, \code{\link[=replace_except]{replace_except()}}
 
-Retaining: \code{\link[=running_number]{running_number()}}, \code{\link[=mark_case]{mark_case()}}, \code{\link[=retain_value]{retain_value()}}, \code{\link[=retain_sum]{retain_sum()}}, \code{\link[=retain_variables]{retain_variables()}}
+Retaining: \code{\link[=running_number]{running_number()}}, \code{\link[=mark_case]{mark_case()}}, \code{\link[=retain_value]{retain_value()}}, \code{\link[=retain_stat]{retain_stat()}}, \code{\link[=retain_variables]{retain_variables()}}
 
 Character Manipulation: \code{\link[=concat]{concat()}}, \code{\link[=sub_string]{sub_string()}}, \code{\link[=remove_blanks]{remove_blanks()}}
 
@@ -69,7 +69,7 @@ Macros: \code{\link[=macro]{macro()}}, \code{\link[=apply_macro]{apply_macro()}}
 
 Saving And Loading: \code{\link[=libname]{libname()}}, \code{\link[=set]{set()}}, \code{\link[=save_file]{save_file()}}, \code{\link[=save_file_multi]{save_file_multi()}}, \code{\link[=load_file]{load_file()}}, \code{\link[=load_file_multi]{load_file_multi()}}
 
-Reporting: \code{\link[=content_report]{content_report()}}, \code{\link[=report_test_results]{report_test_results()}}, \code{\link[=test_package]{test_package()}}, \code{\link[=test_single_file]{test_single_file()}}
+Reporting: \code{\link[=content_report]{content_report()}}, \code{\link[=code_statistics]{code_statistics()}}, \code{\link[=report_test_results]{report_test_results()}}, \code{\link[=test_package]{test_package()}}, \code{\link[=test_single_file]{test_single_file()}}
 
 Messages: \code{\link[=print_message]{print_message()}}, \code{\link[=print_headline]{print_headline()}}, \code{\link[=print_start_message]{print_start_message()}}, \code{\link[=print_closing]{print_closing()}}, \code{\link[=print_step]{print_step()}},
 \code{\link[=set_up_custom_message]{set_up_custom_message()}}, \code{\link[=get_message_stack]{get_message_stack()}}, \code{\link[=set_no_print]{set_no_print()}}, \code{\link[=print_stack_as_messages]{print_stack_as_messages()}}, \code{\link[=convert_square_brackets]{convert_square_brackets()}}
@@ -83,11 +83,11 @@ Split data frame: \link{split_by}
 
 Error handling: \code{\link[=resolve_intersection]{resolve_intersection()}}, \code{\link[=part_of_df]{part_of_df()}}, \code{\link[=remove_doubled_values]{remove_doubled_values()}}, \code{\link[=check_weight]{check_weight()}}
 
-Global options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=reset_style_options]{reset_style_options()}}, \code{\link[=get_style_options]{get_style_options()}}, \code{\link[=close_file]{close_file()}},
-\code{\link[=set_variable_labels]{set_variable_labels()}}, \code{\link[=get_variable_labels]{get_variable_labels()}}, \code{\link[=set_stat_labels]{set_stat_labels()}}, \code{\link[=get_stat_labels]{get_stat_labels()}},
-\code{\link[=set_print]{set_print()}}, \code{\link[=get_print]{get_print()}}, \code{\link[=set_monitor]{set_monitor()}}, \code{\link[=get_monitor]{get_monitor()}}, \code{\link[=set_na.rm]{set_na.rm()}}, \code{\link[=get_na.rm]{get_na.rm()}},
-\code{\link[=set_output]{set_output()}}, \code{\link[=get_output]{get_output()}}, \code{\link[=set_titles]{set_titles()}}, \code{\link[=get_titles]{get_titles()}}, \code{\link[=set_footnotes]{set_footnotes()}}, \code{\link[=get_footnotes]{get_footnotes()}},
-\code{\link[=set_print_miss]{set_print_miss()}}, \code{\link[=get_print_miss]{get_print_miss()}}, \code{\link[=set_threads]{set_threads()}}, \code{\link[=get_threads]{get_threads()}}
+Global options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=get_style_options]{get_style_options()}}, \code{\link[=reset_style_options]{reset_style_options()}}, \code{\link[=close_file]{close_file()}},
+\code{\link[=set_labels]{set_labels()}}, \code{\link[=get_labels]{get_labels()}}, \code{\link[=set_print]{set_print()}}, \code{\link[=get_print]{get_print()}}, \code{\link[=set_monitor]{set_monitor()}},
+\code{\link[=get_monitor]{get_monitor()}}, \code{\link[=set_na.rm]{set_na.rm()}}, \code{\link[=get_na.rm]{get_na.rm()}}, \code{\link[=set_output]{set_output()}}, \code{\link[=get_output]{get_output()}}, \code{\link[=set_titles]{set_titles()}},
+\code{\link[=get_titles]{get_titles()}}, \code{\link[=set_footnotes]{set_footnotes()}}, \code{\link[=get_footnotes]{get_footnotes()}}, \code{\link[=set_print_miss]{set_print_miss()}}, \code{\link[=get_print_miss]{get_print_miss()}},
+\code{\link[=set_threads]{set_threads()}}, \code{\link[=get_threads]{get_threads()}}
 
 Other: \code{\link[=build_master]{build_master()}}, \code{\link[=build_rstheme]{build_rstheme()}}, \code{\link[=free_memory]{free_memory()}}, \code{\link[=qol_news]{qol_news()}}, \code{\link[=qol_chat]{qol_chat()}}
 }

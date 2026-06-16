@@ -35,7 +35,7 @@
 #' Creating a custom table style: [excel_output_style()], [modify_output_style()],
 #' [number_format_style()], [modify_number_formats()].
 #'
-#' Global style options: [set_style_options()], [set_variable_labels()], [set_stat_labels()].
+#' Global style options: [set_style_options()], [set_labels()].
 #'
 #' @examples
 #' # Example files
@@ -462,7 +462,8 @@ export_data <- function(data_frame,
         data_frame |> data.table::fwrite(file = outfile,
                                          sep  = separator,
                                          dec  = decimal,
-                                         col.names = var_names)
+                                         col.names = var_names,
+                                         bom  = TRUE)
     }
     # xlsx
     else if (extension == "xlsx"){

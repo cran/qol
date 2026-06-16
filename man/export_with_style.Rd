@@ -11,6 +11,7 @@ export_with_style(
   var_labels = .qol_options[["var_labels"]],
   workbook = NULL,
   style = .qol_options[["excel_style"]],
+  column_align = NULL,
   output = .qol_options[["output"]],
   print = .qol_options[["print"]],
   monitor = .qol_options[["monitor"]]
@@ -31,6 +32,8 @@ creating a new file.}
 
 \item{style}{A list of options can be passed to control the appearance of 'Excel' outputs.
 Styles can be created with \code{\link[=excel_output_style]{excel_output_style()}}.}
+
+\item{column_align}{Individually align the data frame columns in the final 'Excel' output.}
 
 \item{output}{The following output formats are available: excel and excel_nostyle.}
 
@@ -75,8 +78,8 @@ set_footnotes("This is footnote number 1",
 # Print styled data frame
 my_data |> export_with_style()
 
-# Retrieve formatted workbook for further usage
-wb <- my_data |> export_with_style()
+# Retrieve formatted workbook, original table and meta information for further usage
+export_list <- my_data |> export_with_style()
 
 # To save a table as xlsx file you have to set the path and filename in the
 # style element
@@ -127,7 +130,7 @@ close_file()
 Creating a custom table style: \code{\link[=excel_output_style]{excel_output_style()}}, \code{\link[=modify_output_style]{modify_output_style()}},
 \code{\link[=number_format_style]{number_format_style()}}, \code{\link[=modify_number_formats]{modify_number_formats()}}.
 
-Global style options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=set_variable_labels]{set_variable_labels()}}, \code{\link[=set_stat_labels]{set_stat_labels()}}.
+Global style options: \code{\link[=set_style_options]{set_style_options()}}, \code{\link[=set_labels]{set_labels()}}.
 
 Other global options: \code{\link[=set_titles]{set_titles()}}, \code{\link[=set_footnotes]{set_footnotes()}}, \code{\link[=set_print]{set_print()}}, \code{\link[=set_monitor]{set_monitor()}},
 \code{\link[=set_na.rm]{set_na.rm()}}, \code{\link[=set_print]{set_print()}}, \code{\link[=set_print_miss]{set_print_miss()}}, \code{\link[=set_output]{set_output()}}.
